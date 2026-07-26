@@ -5,6 +5,9 @@ import NotFound from '@/pages/not-found';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 
 import Home from './pages/home';
+import BasketballPage from './pages/basketball';
+import CricketSchedule from './pages/cricket-schedule';
+import FootballPage from './pages/football';
 import LeagueGames from './pages/league-games';
 import BoxScore from './pages/box-score';
 import FantasyOptimizer from './pages/fantasy-optimizer';
@@ -20,6 +23,11 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+
+      {/* ── Sport hub pages ──────────────────────────────────────────────── */}
+      <Route path="/basketball" component={BasketballPage} />
+      <Route path="/cricket" component={CricketSchedule} />
+      <Route path="/football" component={FootballPage} />
 
       {/* ── Cricket routes ────────────────────────────────────────────────
           These MUST appear before the generic /:league routes so that

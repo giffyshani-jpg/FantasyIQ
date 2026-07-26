@@ -18,18 +18,15 @@
 // competitions created by TSDB appear automatically without any code change.
 // The league-based supplement uses a maintained league ID list.
 //
+// Timezone handling (Task 6 fix):
+//   - ALL time comparisons use UTC internally.
+//   - Timezone conversion happens ONLY at display time (in the UI layer).
+//   - A match is NEVER marked "in_progress" from time arithmetic alone.
+//     Only TSDB's strStatus field drives live status detection.
+//   - "scheduled" + start time passed → shows "Starting" in UI, not "LIVE"/"NOW".
+//
 // Provider health: every successful/failed request is reported to provider-health.ts.
 // The UI can display health status and we surface it for debugging.
-//
-// Limitations of TheSportsDB free tier:
-//   - No real-time live scores (status is "NS" = not started, "FT" = finished, etc.)
-//   - No ball-by-ball or innings-level scoring in the free tier
-//   - Score data available only for completed matches
-//
-// ESPNcricinfo is NOT used — their API requires auth tokens (x-hsci-auth-token)
-// and is Akamai-blocked from non-browser clients. Their CORS policy restricts
-// browser calls to espncricinfo.com origin only. Both server-side and cross-origin
-// browser calls fail. TheSportsDB is used exclusively.
 
 import { recordSuccess, recordFailure } from "../lib/provider-health";
 
@@ -62,6 +59,7 @@ const KNOWN_LEAGUES = [
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function fmtDate(date) {
+  // Always produce UTC date string to avoid timezone drift
   return date.toISOString().slice(0, 10);
 }
 
@@ -98,25 +96,55 @@ function makeCompetitionSlug(leagueName) {
     .slice(0, 50);
 }
 
-/** Map TSDB strStatus values to our status enum. */
-function mapTsdbStatus(strStatus, dateEvent) {
+/**
+ * Map TSDB strStatus values to our status enum.
+ *
+ * TIMEZONE FIX (Task 6):
+ *   - NEVER infer "in_progress" from time arithmetic.
+ *   - ONLY use explicit TSDB status strings to mark a match live.
+ *   - "NS" (Not Started) always maps to "scheduled" regardless of time.
+ *   - Past dates with "NS" status → keep as "scheduled" (TSDB hasn't updated yet).
+ *   - "final" is only set when TSDB explicitly reports completion.
+ *
+ * This prevents matches appearing as "NOW" / "LIVE" before they actually start.
+ */
+function mapTsdbStatus(strStatus) {
   const s = (strStatus || "").toLowerCase().trim();
-  if (s === "ft" || s.includes("match finished") || s.includes("abandoned") || s === "aet") {
+
+  // Completed
+  if (
+    s === "ft" ||
+    s === "match finished" ||
+    s.includes("match finished") ||
+    s === "abandoned" ||
+    s.includes("abandoned") ||
+    s === "aet" ||
+    s === "d/l" ||
+    s === "n/r" ||
+    s.includes("no result")
+  ) {
     return "final";
   }
-  // In-progress statuses
-  if (s.includes("1st innings") || s.includes("2nd innings") || s === "in progress" || s === "live") {
+
+  // In-progress — ONLY from explicit TSDB live status strings
+  // Never infer from time
+  if (
+    s.includes("1st innings") ||
+    s.includes("2nd innings") ||
+    s.includes("3rd innings") ||
+    s.includes("4th innings") ||
+    s === "in progress" ||
+    s === "live" ||
+    s === "in-play" ||
+    s.includes("day ") ||  // Test match "Day 2, Session 1"
+    (s.length > 0 && s.includes("innings") && !s.includes("break"))
+  ) {
     return "in_progress";
   }
-  // Not started / scheduled
-  if (s === "ns" || s === "" || s === "not started") {
-    // Determine by date: if in the past, treat as final-pending; if future, scheduled
-    if (dateEvent) {
-      const matchDate = new Date(dateEvent + "T23:59:59Z");
-      if (matchDate < new Date()) return "final"; // past date with no status = completed
-    }
-    return "scheduled";
-  }
+
+  // Not started / unknown → always scheduled
+  // This explicitly includes "ns", "", and unknown strings.
+  // Do NOT map to "final" based on past date — TSDB is slow to update.
   return "scheduled";
 }
 
@@ -129,14 +157,33 @@ function normalizeTsdbEvent(ev) {
     const format = detectFormat(leagueName);
     const slug = makeCompetitionSlug(leagueName);
 
+    // Build startTimeIso in UTC.
+    // strTimestamp is the canonical UTC time from TSDB when available.
+    // Fallback: dateEvent (YYYY-MM-DD, local date) + strTime (HH:MM) → treat as UTC noon
+    // to avoid showing match in wrong local day.
     let startTimeIso = null;
     if (ev.strTimestamp) {
-      try { startTimeIso = new Date(ev.strTimestamp).toISOString(); } catch {}
-    } else if (ev.dateEvent) {
-      startTimeIso = ev.dateEvent + "T12:00:00Z"; // approximate
+      try {
+        const d = new Date(ev.strTimestamp);
+        if (!isNaN(d.getTime())) startTimeIso = d.toISOString();
+      } catch {}
+    }
+    if (!startTimeIso && ev.dateEvent) {
+      // strTime from TSDB is in the event's local timezone — approximate with UTC noon
+      // to avoid showing the match in the wrong day for viewers in different timezones.
+      const timeStr = ev.strTime || "12:00:00";
+      try {
+        // Prefer treating time as UTC
+        const d = new Date(`${ev.dateEvent}T${timeStr}Z`);
+        if (!isNaN(d.getTime())) startTimeIso = d.toISOString();
+        else startTimeIso = ev.dateEvent + "T12:00:00Z";
+      } catch {
+        startTimeIso = ev.dateEvent + "T12:00:00Z";
+      }
     }
 
-    const status = mapTsdbStatus(ev.strStatus, ev.dateEvent);
+    // Status: ONLY from TSDB strStatus — never inferred from time
+    const status = mapTsdbStatus(ev.strStatus);
 
     // Scores — only available for completed matches
     const homeScore = ev.intHomeScore != null && ev.intHomeScore !== "" ? String(ev.intHomeScore) : null;
@@ -204,7 +251,7 @@ async function fetchTsdb(path) {
 // ─── Cache ─────────────────────────────────────────────────────────────────
 
 const DAY_CACHE = new Map(); // dateStr → { games, fetchedAt }
-const DAY_CACHE_TTL = 5 * 60 * 1000; // 5 min (TSDB has no live scores, refresh less often)
+const DAY_CACHE_TTL = 5 * 60 * 1000; // 5 min
 const LEAGUE_CACHE = new Map(); // leagueId → { events, fetchedAt }
 const LEAGUE_CACHE_TTL = 10 * 60 * 1000; // 10 min
 
@@ -261,21 +308,19 @@ async function fetchLeagueEvents(leagueId) {
  *
  * Strategy:
  *   1. Day-based: fetch today, yesterday, and the next 3 days for the immediate window.
- *   2. League-based: fetch all 17 known leagues in parallel for broader upcoming coverage.
+ *   2. League-based: fetch all known leagues in parallel for broader upcoming coverage.
  *   3. Merge and deduplicate by game ID, classify as live/upcoming/lastPlayed.
  *
- * "live" games: status === "in_progress" (TSDB's strStatus contains innings/live markers)
- * "upcoming" games: status === "scheduled", sorted by startTimeIso
- * "lastPlayed": most recent completed game
- *
- * Note: TSDB free tier does not provide live scores. Most "live" games will show
- * as "scheduled" (NS) until they complete (FT). Live status is determined from
- * TSDB's strStatus field when populated.
+ * Timezone rules (Task 6):
+ *   - "live" games: ONLY those with status === "in_progress" from TSDB strStatus.
+ *   - "upcoming" games: status === "scheduled" with startTimeIso in the future
+ *     OR within past 3h (TSDB may not have updated yet — do NOT mark as live).
+ *   - Never use time arithmetic to promote "scheduled" → "in_progress".
  */
 export async function getLeagueOverview() {
   const now = new Date();
 
-  // Day-based: yesterday, today, +1, +2, +3 days
+  // Day-based: yesterday, today, +1, +2, +3 days (all UTC dates)
   const dayDates = [-1, 0, 1, 2, 3].map(offset =>
     fmtDate(new Date(now.getTime() + offset * 86_400_000))
   );
@@ -299,16 +344,19 @@ export async function getLeagueOverview() {
     }
   }
 
-  // Classify
+  // Live: only explicitly marked by TSDB
   const live = all.filter(g => g.status === "in_progress");
 
-  // Upcoming: scheduled games with startTimeIso in the future, or within past 3h (might have started)
+  // Upcoming: scheduled games — sorted by startTimeIso
+  // Include games that started up to 3h ago (TSDB may not have updated status yet)
+  // BUT keep them as "scheduled" — do NOT promote to "in_progress"
   const upcoming = all
     .filter(g => {
       if (g.status !== "scheduled") return false;
-      if (!g.startTimeIso) return true;
-      const diff = new Date(g.startTimeIso).getTime() - now.getTime();
-      return diff > -3 * 3600 * 1000; // include games that started within last 3h (might not be in progress yet per TSDB)
+      if (!g.startTimeIso) return true; // no time — include
+      const diffMs = new Date(g.startTimeIso).getTime() - now.getTime();
+      // Include: future games AND games that started within last 3h (awaiting TSDB update)
+      return diffMs > -3 * 3600 * 1000;
     })
     .sort((a, b) =>
       new Date(a.startTimeIso ?? 0).getTime() - new Date(b.startTimeIso ?? 0).getTime()
@@ -323,9 +371,9 @@ export async function getLeagueOverview() {
 
   const lastPlayed = recentCompleted[0] ?? null;
 
-  // Active competitions: leagues that have at least one upcoming or recently completed game
+  // Active competitions: leagues with upcoming or recently completed games (within 7 days)
   const activeCompetitionNames = new Set();
-  const cutoffPast = new Date(now.getTime() - 7 * 86_400_000); // 7 days ago
+  const cutoffPast = new Date(now.getTime() - 7 * 86_400_000);
   for (const g of all) {
     if (g.status === "scheduled") {
       activeCompetitionNames.add(g.competitionName);
@@ -333,6 +381,8 @@ export async function getLeagueOverview() {
       if (new Date(g.startTimeIso) > cutoffPast) {
         activeCompetitionNames.add(g.competitionName);
       }
+    } else if (g.status === "in_progress") {
+      activeCompetitionNames.add(g.competitionName);
     }
   }
   const activeCompetitions = [...activeCompetitionNames];

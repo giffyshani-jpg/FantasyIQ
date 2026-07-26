@@ -21,6 +21,7 @@ import * as nznblProvider from "./providers/nznbl";
 import * as fibaProvider from "./providers/fiba";
 import * as nbaSummerProvider from "./providers/nba-summer";
 import * as cricketProvider from "./providers/cricket";
+import * as footballProvider from "./providers/football";
 
 // ─── Cricket provider adapter ──────────────────────────────────────────────
 // Wraps the cricket provider so it satisfies the same interface as basketball
@@ -40,6 +41,7 @@ const PROVIDERS = {
   fiba: fibaProvider,
   "nba-summer": nbaSummerProvider,
   cricket: cricketAdapter,
+  football: footballProvider,
 };
 
 function getProvider(league) {
@@ -185,7 +187,7 @@ function getOverviewFromCache(key) {
   if (mem && Date.now() - mem.fetchedAt < OVERVIEW_CACHE_TTL) return mem.data;
   // 2. sessionStorage
   try {
-    const raw = sessionStorage.getItem("hoopiq:overview:" + key);
+    const raw = sessionStorage.getItem("fantasyiq:overview:" + key);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Date.now() - parsed.fetchedAt < OVERVIEW_CACHE_TTL) {
@@ -201,7 +203,7 @@ function setOverviewCache(key, data) {
   const entry = { data, fetchedAt: Date.now() };
   OVERVIEW_MEM_CACHE.set(key, entry);
   try {
-    sessionStorage.setItem("hoopiq:overview:" + key, JSON.stringify(entry));
+    sessionStorage.setItem("fantasyiq:overview:" + key, JSON.stringify(entry));
   } catch {}
 }
 
@@ -363,5 +365,50 @@ export async function fetchTeamSchedule(teamId, league) {
     () => getProvider(league).getTeamSchedule(teamId),
     [],
     `fetchTeamSchedule(${teamId}, ${league})`
+  );
+}
+
+// ─── Football-specific exports ─────────────────────────────────────────────
+//
+// Football uses TheSportsDB (same as cricket). Scores and live data are
+// infrastructure-only in the first pass — fantasy logic TBD.
+
+/**
+ * Returns football overview for today/yesterday/tomorrow.
+ * Infrastructure only — returns { live: [], upcoming: [], lastPlayed: null }
+ * until the football provider is fully wired.
+ */
+export async function fetchFootballOverview() {
+  const key = "football:overview";
+  const cached = getOverviewFromCache(key);
+  if (cached) return cached;
+  if (OVERVIEW_IN_FLIGHT.has(key)) return OVERVIEW_IN_FLIGHT.get(key);
+
+  const promise = safeCall(
+    () => footballProvider.getLeagueOverview(),
+    { live: [], upcoming: [], lastPlayed: null },
+    "fetchFootballOverview"
+  ).then((result) => {
+    OVERVIEW_IN_FLIGHT.delete(key);
+    if (result) setOverviewCache(key, result);
+    return result;
+  }).catch((err) => {
+    OVERVIEW_IN_FLIGHT.delete(key);
+    console.error("[api] fetchFootballOverview failed:", err?.message ?? err);
+    return { live: [], upcoming: [], lastPlayed: null };
+  });
+
+  OVERVIEW_IN_FLIGHT.set(key, promise);
+  return promise;
+}
+
+/**
+ * Football events for a specific YYYYMMDD date string.
+ */
+export async function fetchFootballGamesByDate(dateStr) {
+  return safeCall(
+    () => footballProvider.getGamesByDate(dateStr),
+    [],
+    `fetchFootballGamesByDate(${dateStr})`
   );
 }

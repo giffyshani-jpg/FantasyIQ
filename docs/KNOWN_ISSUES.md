@@ -1,43 +1,57 @@
-# HoopIQ — Known Issues
+# FantasyIQ — Known Issues & Limitations
 
-## Active Bugs
+## Cricket
 
-### NZ NBL
-- **No live scores**: TheSportsDB free tier doesn't provide live scores. Status is always "scheduled" or "final". Live dot never appears for NZ NBL games.
-- **No player box scores**: TheSportsDB free tier returns no player-level stats. Game pages for NZ NBL show team scores only, no roster.
-- **`getGamesByDate` falls back to ESPN** which returns 400 for "nznbl" slug — any per-date query returns empty for NZ NBL.
+### No live scores (TheSportsDB limitation)
+- TheSportsDB free tier does not provide ball-by-ball or real-time scores
+- Match status only updates when TheSportsDB editors manually update strStatus
+- Live cricket matches will show "Starting" until TSDB confirms (may be hours delay)
+- **Workaround**: None without a paid/authenticated cricket data source (CricAPI, Cricbuzz)
 
-### FIBA
-- **Intermittent ESPN availability**: FIBA events only appear when ESPN has active FIBA coverage. Between tournaments, the league may show empty.
-- **No play-by-play**: ESPN FIBA scoreboard doesn't always include play-by-play data.
+### Timezone "Starting" state
+- When a match's start time has passed but TSDB hasn't updated strStatus, the match shows "Starting" in the UI
+- This is CORRECT behavior — we never infer "live" from time alone (Task 6 fix)
+- Previously showed "NOW" incorrectly; this was a bug and is now fixed
 
-### NBA Summer League
-- **Season-specific**: Runs only in July. Provider is kept live year-round but auto-hides on home page when no games are returned.
-- **getGame uses NBA summary**: Summer League game detail fetches via `espn.getGame("nba", gameId)` — works because game IDs are shared, but relies on the NBA summary endpoint which may have different data availability.
+### Scorecard data not available
+- TSDB free tier doesn't provide innings-level scoring or player stats for cricket
+- Cricket box score shows empty scorecard for most matches
+- ESPN Cricinfo provides this data but requires auth + CORS restrictions prevent browser calls
 
-### NBA / NBL
-- **Off-season gaps**: Forward scan in `getLeagueOverview` searches up to 180 days. If ESPN doesn't populate a future slate that far out, "Next game" may show incorrectly or not at all.
+## Basketball
 
-### Fantasy Optimizer
-- **OCR accuracy**: Tesseract.js name matching is fuzzy (Levenshtein distance). Short or hyphenated names sometimes fail to match. Users can manually correct via the dropdown.
-- **Credits not game-scoped**: Player credits are stored globally by player ID. If a player appears in multiple games, their credit carries over (by design, but can surprise users).
-- **No auto-assign C/VC in Auto-Pick**: The Auto-Pick button fills the 8 slots but doesn't assign Captain or Vice Captain. Users must do that manually.
+### NBA off-season (July 2026)
+- NBA is in off-season; next games approximately October 2026
+- The league page shows this correctly with "Next scheduled game" date
+- Summer League is active and working
 
-## Limitations
+### NZ NBL player stats
+- TheSportsDB free tier has no player stats for NZ NBL
+- Box score correctly shows "No player data available" message
+- Game scores and results do work
 
-### ESPN API
-- Undocumented, unofficial endpoint — shapes can change without notice.
-- No API key required; CORS open. Can be rate-limited under heavy load.
-- Pre-game injury report only available for ESPN-backed leagues (NBA, WNBA, NBL, FIBA, Summer).
+## Football
 
-### General
-- **No push notifications**: App is a static SPA; no service worker or background sync.
-- **No user accounts**: All data is localStorage. Clearing browser storage loses saved lineups.
-- **Mobile-first only**: Desktop experience is functional but not optimized.
-- **EuroLeague/EuroCup blocked**: No public API available. ESPN returns 400.
+### Infrastructure only
+- `/football` page shows competition list but no live scores
+- Fantasy logic not yet implemented
+- TheSportsDB Soccer data is available but not displayed in detail yet
 
-## Future Improvements
-- Consider caching ESPN responses in sessionStorage to reduce redundant requests
-- Add a "no lineup yet" empty state with step-by-step onboarding in the optimizer
-- Improve OCR matching for international player names
-- Investigate TheSportsDB paid tier for NZ NBL live scores
+## Provider System
+
+### Provider manager not yet wired to live providers
+- `src/lib/provider-manager.ts` is implemented but not yet adopted by individual providers
+- Each provider still uses its own single-source logic
+- To adopt: wrap multi-provider sports with `createProviderManager()`
+
+## General
+
+### No authentication / user accounts
+- All data is browser-local (localStorage)
+- Lineups and settings don't sync across devices
+- No sharing or social features
+
+### ESPN rate limiting
+- ESPN unofficial API may rate-limit heavy usage
+- 9s timeout with 2 retries built in; 4xx errors not retried
+- If seeing blank data: usually a temporary ESPN restriction, refreshes in a few minutes
