@@ -55,8 +55,10 @@ function StatusBadge({ game }: { game: CricketGame }) {
     const now = Date.now();
     const start = new Date(game.startTimeIso).getTime();
     // Only show "LIVE" if provider confirms in_progress. Never infer from time alone.
-    if (start - now < 0 && start - now > -3 * 3600 * 1000) {
-      // Match start time has passed but not marked live yet — show as "Starting"
+    if (start - now < 0 && start - now > -8 * 3600 * 1000) {
+      // Match start time has passed but not marked live yet — show as "Starting".
+      // -8h matches the provider's upcoming cutoff so no match ever shows a raw
+      // past timestamp in the badge. Covers T20 (~3.5h) and ODI (~8h) durations.
       return <span className="text-[10px] font-bold text-amber-400/80">Starting</span>;
     }
     return (
