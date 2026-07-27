@@ -35,7 +35,9 @@ function Router() {
           /:league/game/:id with league="cricket". */}
       <Route path="/cricket/:competition/game/:id/optimizer" component={CricketOptimizer} />
       <Route path="/cricket/:competition/game/:id" component={CricketBoxScore} />
-      <Route path="/cricket/:competition" component={LeagueGames} />
+      {/* NOTE: /cricket/:competition (competition-list page) intentionally omitted —
+          LeagueGames expects a "league" param but this route provides "competition",
+          causing a broken render. Unknown /cricket/* paths fall to NotFound. */}
 
       {/* ── Basketball routes ─────────────────────────────────────────── */}
       <Route path="/:league/game/:id/optimizer" component={FantasyOptimizer} />
