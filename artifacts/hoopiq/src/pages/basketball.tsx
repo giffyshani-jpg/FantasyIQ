@@ -10,7 +10,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { MobileLayout } from "../components/layout";
 import { GameCard } from "../components/game-card";
-import { fetchLeagueOverview, fetchGamesByLeagueAndDate, LEAGUE_CONFIGS } from "../api";
+import { fetchLeagueOverview, fetchGamesByLeagueAndLocalDate, LEAGUE_CONFIGS } from "../api";
 import { Game, LeagueKey, LeagueOverview } from "../lib/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -147,7 +147,7 @@ function LeagueSection({ leagueKey, emoji, overview, overviewLoading }: LeagueSe
     setGamesLoading(true);
     setGames(null);
 
-    fetchGamesByLeagueAndDate(leagueKey, dateKey)
+    fetchGamesByLeagueAndLocalDate(leagueKey, dateKey)
       .then((g: Game[]) => setGames(g))
       .catch(() => setGames([]))
       .finally(() => setGamesLoading(false));

@@ -219,6 +219,61 @@ export async function fetchGamesByLeagueAndDate(league, dateStr) {
 }
 
 /**
+ * Games for a specific LOCAL calendar date (YYYYMMDD in the user's timezone).
+ *
+ * Unlike fetchGamesByLeagueAndDate, this also queries the ESPN previous-day
+ * scoreboard so that games played yesterday evening in US Eastern (which fall
+ * on the user's local "today" for IST / Australia / UK viewers) are included.
+ *
+ * Example: WNBA 7:30 PM ET Tuesday = 1:00 AM IST Wednesday.
+ *   - startTimeIso = "2026-07-27T23:30:00Z" → local date "2026-07-28" (IST)
+ *   - ESPN stores this under date "20260727"
+ *   - IST user navigates to "Today" (20260728) → this function queries both
+ *     20260728 AND 20260727, then keeps only games whose startTimeIso maps to
+ *     the LOCAL date 2026-07-28. The game is correctly returned. ✅
+ *
+ * @param {string} league        e.g. "wnba", "nba"
+ * @param {string} localDate     YYYYMMDD derived from the user's local clock
+ */
+export async function fetchGamesByLeagueAndLocalDate(league, localDate) {
+  const provider = getProvider(league);
+  const fn = provider.getGamesByDate ?? provider.getTodayGames;
+
+  // Compute the previous-day YYYYMMDD (local, not UTC)
+  const y    = parseInt(localDate.slice(0, 4), 10);
+  const mo   = parseInt(localDate.slice(4, 6), 10) - 1; // 0-indexed
+  const d    = parseInt(localDate.slice(6, 8), 10);
+  const prev = new Date(y, mo, d - 1);
+  const prevDate = [
+    String(prev.getFullYear()),
+    String(prev.getMonth() + 1).padStart(2, "0"),
+    String(prev.getDate()).padStart(2, "0"),
+  ].join("");
+
+  // Fetch current date AND previous date in parallel
+  const [curr, prevGames] = await Promise.all([
+    safeCall(() => fn(localDate), [], `fetchGamesByLeagueAndLocalDate(${league}, ${localDate})`),
+    safeCall(() => fn(prevDate),  [], `fetchGamesByLeagueAndLocalDate(${league}, ${prevDate})`),
+  ]);
+
+  // Merge, de-duplicate (current day takes precedence — freshest live status)
+  const byId = new Map();
+  for (const g of prevGames) byId.set(g.id, g);
+  for (const g of curr) byId.set(g.id, g);
+
+  // Filter to only games whose LOCAL date matches the requested date
+  const localDateIso = `${localDate.slice(0, 4)}-${localDate.slice(4, 6)}-${localDate.slice(6, 8)}`;
+  return [...byId.values()].filter((g) => {
+    if (!g.startTimeIso) return false;
+    try {
+      return new Date(g.startTimeIso).toLocaleDateString("en-CA") === localDateIso;
+    } catch {
+      return false;
+    }
+  });
+}
+
+/**
  * Timezone-safe league overview: { live, upcoming, lastPlayed }.
  * For "cricket" — delegates to the cricket provider's auto-discovery.
  */
