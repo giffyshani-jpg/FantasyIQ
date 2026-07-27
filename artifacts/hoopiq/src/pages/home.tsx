@@ -30,7 +30,7 @@ function relativeDate(isoString: string | null | undefined): string {
 function isGameSoon(startTimeIso: string | null | undefined): boolean {
   if (!startTimeIso) return false;
   const diff = new Date(startTimeIso).getTime() - Date.now();
-  return diff < 48 * 3600 * 1000 && diff > -6 * 3600 * 1000;
+  return diff < 48 * 3600 * 1000 && diff > -8 * 3600 * 1000; // -8h covers T20/ODI durations
 }
 
 // ─── Live pulse dot ───────────────────────────────────────────────────────────

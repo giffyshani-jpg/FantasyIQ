@@ -356,7 +356,7 @@ export async function getLeagueOverview() {
       if (!g.startTimeIso) return true; // no time — include
       const diffMs = new Date(g.startTimeIso).getTime() - now.getTime();
       // Include: future games AND games that started within last 3h (awaiting TSDB update)
-      return diffMs > -3 * 3600 * 1000;
+      return diffMs > -8 * 3600 * 1000; // cover full T20 (~3.5h) and ODI (~8h) durations
     })
     .sort((a, b) =>
       new Date(a.startTimeIso ?? 0).getTime() - new Date(b.startTimeIso ?? 0).getTime()
