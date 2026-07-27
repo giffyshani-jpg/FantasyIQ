@@ -15,7 +15,9 @@ import type { CricketGame, CricketLeagueOverview } from "../lib/cricket-types";
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  // Use LOCAL date so tab selection matches the user's calendar day,
+  // not UTC. Without this, IST users see games under the wrong day tab.
+  return date.toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
 }
 
 function fmtTime(isoString: string | null | undefined): string {
