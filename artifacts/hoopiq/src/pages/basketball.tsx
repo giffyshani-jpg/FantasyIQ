@@ -16,7 +16,12 @@ import { Game, LeagueKey, LeagueOverview } from "../lib/types";
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatDateKey(date: Date): string {
-  return date.toISOString().slice(0, 10).replace(/-/g, "");
+  // Use LOCAL date so the date navigator matches the user's calendar day,
+  // not UTC. Without this, IST users (UTC+5:30) see the wrong day's games.
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}${m}${d}`;
 }
 
 function relativeDate(isoString: string | null | undefined): string {
