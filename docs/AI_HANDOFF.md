@@ -2,7 +2,8 @@
 
 ## Latest Session Summary
 
-13 tasks completed: full rebrand (HoopIQ→FantasyIQ), home screen redesign, basketball hub, cricket schedule page, provider system, timezone fix, cricket match enhancements, format-aware stats, recent stats engine, football infrastructure, UI polish, documentation.
+Basketball page "Recent" tab implemented (commit `1b04523`).
+Previous: 13 tasks completed — full rebrand, home screen, basketball hub, cricket schedule, provider system, timezone fix, cricket enhancements, format-aware stats, football infrastructure, UI polish, documentation.
 
 ## Architecture (as of this session)
 
@@ -33,28 +34,29 @@
 
 ### Dev Commands
 - Typecheck: `pnpm --filter @workspace/hoopiq run typecheck`
-- Dev server: via workflow `fantasyiq-repo/artifacts/hoopiq: web`
-- All pushes to GitHub main via git-remote skill
+- Dev server: via workflow `HoopIQ` (PORT=21534 BASE_PATH=/)
+- All pushes to GitHub main via git remote with GITHUB_TOKEN secret
+
+## Basketball Tab System (as of this session)
+
+Tabs are now: **Recent (0) · Today (1) · Tomorrow (2)**
+
+**Recent tab logic** (`findRecentDate` in basketball.tsx):
+- Walks backwards from today (offset 0, -1, -2 … -30)
+- For each date fetches NBA + WNBA games in parallel
+- Stops at the first date that has at least one `status === "final"` game
+- Shows ALL games from that date (not just completed ones)
+- Falls back to empty lists if no completed game found in 30 days
+- Uses AbortController — switching tabs cancels the in-flight search
+
+**Live indicator** and count badge are now correctly wired to Today (tab index 1), not Recent.
+
+**Empty-state messages** are tab-aware: "No recent completed NBA games" / "No NBA games today" / "No NBA games tomorrow".
 
 ## Files Modified This Session
 
-### New files
-- `artifacts/hoopiq/src/pages/basketball.tsx` — Basketball hub page
-- `artifacts/hoopiq/src/pages/cricket-schedule.tsx` — Cricket schedule with day tabs
-- `artifacts/hoopiq/src/pages/football.tsx` — Football hub (infrastructure)
-- `artifacts/hoopiq/src/providers/football.js` — TheSportsDB Football provider
-- `artifacts/hoopiq/src/lib/provider-manager.ts` — Multi-provider priority system
-- `artifacts/hoopiq/src/lib/format-filter.ts` — Format-aware statistics filter
-
 ### Modified
-- `artifacts/hoopiq/index.html` — FantasyIQ title/meta (Task 1)
-- `artifacts/hoopiq/src/components/layout.tsx` — FantasyIQ logo, lightning bolt icon
-- `artifacts/hoopiq/src/pages/home.tsx` — 3-sport hub redesign (Task 2)
-- `artifacts/hoopiq/src/App.tsx` — New routes for basketball/cricket/football
-- `artifacts/hoopiq/src/api.js` — Football provider, fantasyiq: cache key, exports
-- `artifacts/hoopiq/src/providers/cricket.js` — Timezone fix (Task 6)
-- `artifacts/hoopiq/src/index.css` — UI polish, animations, chips (Task 11)
-- `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md`, `docs/AI_HANDOFF.md`
+- `artifacts/hoopiq/src/pages/basketball.tsx` — Recent/Today/Tomorrow tabs, `findRecentDate` backward search
 
 ## What the Next Session Should Know
 
