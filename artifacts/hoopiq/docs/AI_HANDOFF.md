@@ -3,7 +3,7 @@
 Context for any agent picking up work on this codebase.
 
 > **Last updated**: July 28, 2026  
-> **Git**: Local `main` = `origin/main` = `33f556a` — fully synchronized  
+> **Git**: Local `main` = `origin/main` = `e4f7f20` — fully synchronized  
 > **Build**: TypeScript clean · Vite running on port 21534 (`HoopIQ` workflow)
 
 ---
@@ -11,7 +11,9 @@ Context for any agent picking up work on this codebase.
 ## Current Git State
 
 ```
-33f556a  fix(date-utils): extract shared local-timezone utility — fixes home date, match counts, Today/Tomorrow/Day-After, WNBA navigator  ← HEAD = origin/main
+e4f7f20  feat(cricket-schedule): add Recent tab showing completed matches from yesterday + today  ← HEAD = origin/main
+0a261ed  docs: update AI_HANDOFF and CURRENT_STATUS for date-utils fix (33f556a)
+33f556a  fix(date-utils): extract shared local-timezone utility — fixes home date, match counts, Today/Tomorrow/Day-After, WNBA navigator
 a695c73  docs: update AI_HANDOFF and CURRENT_STATUS to reflect true state (July 28)
 318fbc8  fix(bug5-routes): remove broken /cricket/:competition catch-all route
 c1f889f  fix(bug2-basketball): fetch prev-day ESPN scoreboard and filter by local date

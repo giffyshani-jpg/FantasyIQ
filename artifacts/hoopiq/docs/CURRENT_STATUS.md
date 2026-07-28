@@ -2,7 +2,7 @@
 
 **Last updated**: July 28, 2026  
 **Build status**: ✅ TypeScript clean · Vite server running (HoopIQ workflow, port 21534)  
-**Git**: ✅ Local = GitHub = `33f556a` — fully synchronized  
+**Git**: ✅ Local = GitHub = `e4f7f20` — fully synchronized  
 
 ---
 
@@ -10,11 +10,11 @@
 
 | Item | Status |
 |------|--------|
-| Local branch | `main` at `33f556a` |
-| Remote (`origin/main`) | `33f556a` |
+| Local branch | `main` at `e4f7f20` |
+| Remote (`origin/main`) | `e4f7f20` |
 | Uncommitted changes | None |
 | Unpushed commits | None |
-| Last pushed commit | `fix(date-utils): extract shared local-timezone utility` |
+| Last pushed commit | `feat(cricket-schedule): add Recent tab showing completed matches from yesterday + today` |
 
 **Local and GitHub are fully in sync.** Nothing is missing from either side.
 
@@ -27,7 +27,16 @@
 - Lightning bolt logo, "Multi-Sport Fantasy" tagline
 - SessionStorage cache key: `fantasyiq:overview:`
 
-### Shared Date/Timezone Utility ✅ (NEW — `33f556a`)
+### Cricket Schedule — Recent Tab ✅ (NEW — `e4f7f20`)
+- **`/cricket` tabs now: Recent / Today / Tomorrow / Day After**
+- Recent tab shows all completed (`status === "final"`) matches from yesterday + today (local dates), newest first
+- `CricketLeagueOverview` extended with `recentCompleted: CricketGame[]`
+- Provider (`cricket.js`) exposes `recentCompleted` — final games sorted newest-first
+- Default tab on page load = Today (not Recent)
+- Full timezone correctness via `localDateString` / `localDateStringFromIso` from `date-utils.ts`
+- All existing Today / Tomorrow / Day After behaviour fully preserved
+
+### Shared Date/Timezone Utility ✅ (`33f556a`)
 - **`src/lib/date-utils.ts`** — single source of truth for all local-timezone helpers
 - Exports: `localDateString`, `localDateStringFromIso`, `localDateKey`, `relativeDate`, `fmtDisplayDate`, `fmtTime`, `localDayOffset`
 - All three pages (`home.tsx`, `basketball.tsx`, `cricket-schedule.tsx`) import from here
