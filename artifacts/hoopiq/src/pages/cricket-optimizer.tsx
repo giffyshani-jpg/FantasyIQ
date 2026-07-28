@@ -516,7 +516,7 @@ export default function CricketOptimizer() {
           <Link href={`/cricket/${competition}/game/${encodeURIComponent(rawId)}`}>
             <button className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-sm font-medium">
               <ArrowLeft />
-              <span>Box Score</span>
+              <span>Match Details</span>
             </button>
           </Link>
           {game && (

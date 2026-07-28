@@ -341,10 +341,10 @@ export default function CricketBoxScore() {
       <div className="p-4 sm:p-5 flex flex-col gap-4 pb-12">
         {/* Back navigation */}
         <div className="flex items-center gap-2">
-          <Link href={`/cricket/${competition}`}>
+          <Link href="/cricket">
             <button className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-sm font-medium">
               <ArrowLeft />
-              <span>{competition.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</span>
+              <span>Cricket</span>
             </button>
           </Link>
         </div>

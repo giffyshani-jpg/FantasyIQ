@@ -2,7 +2,7 @@
 //
 // Route: /cricket
 //
-// Displays RECENT / TODAY / TOMORROW / DAY AFTER TOMORROW tabs.
+// Displays RECENT / TODAY / TOMORROW tabs.
 // Groups matches by competition. Auto-discovers all competitions via TheSportsDB.
 // No hardcoded league list required — competitions appear automatically.
 
@@ -166,9 +166,9 @@ function CompetitionGroup({ name, games }: { name: string; games: CricketGame[] 
 
 // ─── Day tab ──────────────────────────────────────────────────────────────────
 
-// Tab indices: 0 = Recent, 1 = Today, 2 = Tomorrow, 3 = Day After
-// dayOffset mapping: tabIndex - 1  →  -1 = recent, 0 = today, 1 = tomorrow, 2 = day after
-const DAY_LABELS = ["Recent", "Today", "Tomorrow", "Day After"];
+// Tab indices: 0 = Recent, 1 = Today, 2 = Tomorrow
+// dayOffset mapping: tabIndex - 1  →  -1 = recent, 0 = today, 1 = tomorrow
+const DAY_LABELS = ["Recent", "Today", "Tomorrow"];
 
 interface DayTabsProps {
   selectedDay: number; // 0 = recent, 1 = today, 2 = tomorrow, 3 = day after
@@ -211,19 +211,24 @@ function DayTabs({ selectedDay, onChange, counts, hasLive }: DayTabsProps) {
 // ─── Games for a specific day ─────────────────────────────────────────────────
 
 function DayGames({ overview, dayOffset, loading }: { overview: CricketLeagueOverview | null; dayOffset: number; loading: boolean }) {
-  // dayOffset = -1 means "Recent": completed games from yesterday + today up to now.
+  // dayOffset = -1 means "Recent": walk backwards from today to find the most
+  // recent date with completed matches, then show ALL matches from that date.
   // dayOffset >= 0 means a calendar day offset from today.
 
   let dayGames: CricketGame[];
 
   if (dayOffset === -1) {
-    // Recent: all final games from yesterday and today (local dates), newest first.
-    const todayStr = localDateString(new Date());
-    const yesterdayStr = localDateString(new Date(Date.now() - 86_400_000));
-    dayGames = (overview?.recentCompleted ?? []).filter(g => {
+    // Recent: find the single most-recent date that has any completed game,
+    // then show all games from that date. Identical algorithm to basketball.tsx.
+    const completed = overview?.recentCompleted ?? [];
+    const latestDate = completed.reduce<string | null>((best, g) => {
       const d = localDateStringFromIso(g.startTimeIso);
-      return d === todayStr || d === yesterdayStr;
-    });
+      if (!d) return best;
+      return best === null || d > best ? d : best;
+    }, null);
+    dayGames = latestDate
+      ? completed.filter(g => localDateStringFromIso(g.startTimeIso) === latestDate)
+      : [];
     // recentCompleted is already sorted newest-first from the provider
   } else {
     const targetDate = localDateString(new Date(Date.now() + dayOffset * 86_400_000));
@@ -280,7 +285,7 @@ function DayGames({ overview, dayOffset, loading }: { overview: CricketLeagueOve
         <p className="text-2xl mb-3">🏏</p>
         <p className="text-sm font-semibold text-muted-foreground/60">No cricket scheduled</p>
         <p className="text-xs text-muted-foreground/40 mt-1">
-          {dayOffset === -1 ? "No completed matches yet today or yesterday" :
+          {dayOffset === -1 ? "No completed matches found" :
            dayOffset === 0 ? "Check back throughout the day" : "Nothing found for this date"}
         </p>
       </div>
@@ -318,19 +323,20 @@ export default function CricketSchedule() {
   }, []);
 
   // Compute per-tab counts for badges.
-  // Tab 0 = Recent, Tab 1 = Today (offset 0), Tab 2 = Tomorrow (offset 1), Tab 3 = Day After (offset 2)
+  // Tab 0 = Recent, Tab 1 = Today (offset 0), Tab 2 = Tomorrow (offset 1)
   const recentCount = (() => {
-    const todayStr = localDateString(new Date());
-    const yesterdayStr = localDateString(new Date(Date.now() - 86_400_000));
-    return (overview?.recentCompleted ?? []).filter(g => {
+    const completed = overview?.recentCompleted ?? [];
+    const latestDate = completed.reduce<string | null>((best, g) => {
       const d = localDateStringFromIso(g.startTimeIso);
-      return d === todayStr || d === yesterdayStr;
-    }).length;
+      if (!d) return best;
+      return best === null || d > best ? d : best;
+    }, null);
+    return latestDate ? completed.filter(g => localDateStringFromIso(g.startTimeIso) === latestDate).length : 0;
   })();
 
   const counts = [
     recentCount,
-    ...[0, 1, 2].map(offset => {
+    ...[0, 1].map(offset => {
       const targetDate = localDateString(new Date(Date.now() + offset * 86_400_000));
       const all = [
         ...(overview?.live ?? []),
@@ -341,7 +347,7 @@ export default function CricketSchedule() {
   ];
 
   // hasLive: only Today (tab 1) can have live matches
-  const hasLive = [false, (overview?.live.length ?? 0) > 0, false, false];
+  const hasLive = [false, (overview?.live.length ?? 0) > 0, false];
 
   const liveCount = overview?.live.length ?? 0;
   const activeCompCount = overview?.activeCompetitions.length ?? 0;
