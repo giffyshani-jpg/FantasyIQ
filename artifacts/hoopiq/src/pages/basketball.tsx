@@ -3,11 +3,16 @@
 // Route: /basketball
 //
 // Redesigned to match Cricket UI:
-//   - Shared day tabs (Today / Tomorrow / Day After) at page level
+//   - Shared day tabs (Recent / Today / Tomorrow) at page level
 //   - Flat competition-group section headers (collapsible, count badge, live dot)
 //   - Same card style, spacing, and animations as cricket-schedule.tsx
 //
 // Data and provider logic unchanged from prior implementation.
+//
+// Recent tab logic:
+//   Walk backwards from today (up to 30 days) to find the most recent
+//   calendar date that has at least one completed (status === "final") game
+//   for NBA or WNBA.  If today itself has completed games they appear first.
 
 import React, { useEffect, useState } from "react";
 import { Link } from "wouter";
@@ -31,12 +36,47 @@ function isGameSoon(game: Game): boolean {
   return diff < 48 * 3600 * 1000 && diff > -6 * 3600 * 1000;
 }
 
-// ─── Day tabs — identical design to cricket DayTabs ───────────────────────────
+/**
+ * Walk backwards from today (offset 0, -1, -2 … -30) to find the most recent
+ * calendar date that has at least one completed game for NBA or WNBA.
+ * Returns the games for that date.  Falls back to yesterday's empty lists if
+ * no completed game is found in the last 30 days.
+ */
+async function findRecentDate(
+  signal: AbortSignal,
+): Promise<{ nba: Game[]; wnba: Game[] }> {
+  for (let offset = 0; offset >= -30; offset--) {
+    if (signal.aborted) throw new DOMException("Aborted", "AbortError");
 
-const DAY_LABELS = ["Today", "Tomorrow", "Day After"];
+    const date = localDayOffset(offset);
+    const dateKey = localDateKey(date);
+
+    const [nba, wnba] = await Promise.all([
+      fetchGamesByLeagueAndLocalDate("nba", dateKey).catch(() => [] as Game[]),
+      fetchGamesByLeagueAndLocalDate("wnba", dateKey).catch(() => [] as Game[]),
+    ]);
+
+    if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+
+    const hasCompleted = ([...nba, ...wnba] as Game[]).some(
+      (g) => g.status === "final",
+    );
+    if (hasCompleted) {
+      return { nba: nba as Game[], wnba: wnba as Game[] };
+    }
+  }
+
+  // Fallback: no completed games found in 30 days — return empty
+  return { nba: [], wnba: [] };
+}
+
+// ─── Day tabs ─────────────────────────────────────────────────────────────────
+
+// Tab indices: 0 = Recent, 1 = Today, 2 = Tomorrow
+const DAY_LABELS = ["Recent", "Today", "Tomorrow"];
 
 interface DayTabsProps {
-  selected: number; // 0 = Today, 1 = Tomorrow, 2 = Day After
+  selected: number;
   onChange: (i: number) => void;
   counts: number[];
   hasLive: boolean[];
@@ -88,7 +128,7 @@ interface LeagueSectionProps {
   overviewLoading: boolean;
   games: Game[] | null;
   gamesLoading: boolean;
-  dayOffset: number; // 0 = today, 1 = tomorrow, 2 = day after
+  tabIndex: number; // 0 = Recent, 1 = Today, 2 = Tomorrow
 }
 
 function LeagueSection({
@@ -98,7 +138,7 @@ function LeagueSection({
   overviewLoading,
   games,
   gamesLoading,
-  dayOffset,
+  tabIndex,
 }: LeagueSectionProps) {
   const [expanded, setExpanded] = useState(true);
 
@@ -124,7 +164,7 @@ function LeagueSection({
     );
   }
 
-  // Next game label shown in empty state
+  // Next game label — only shown in non-Recent empty states
   const nextGameLabel = (() => {
     if (allUpcoming.length === 0) return null;
     const first = allUpcoming[0];
@@ -138,6 +178,13 @@ function LeagueSection({
       : "";
     return rel && rel !== "Today" && rel !== "Tomorrow" ? `${rel} · ${full}` : full;
   })();
+
+  const emptyMessage =
+    tabIndex === 0
+      ? `No recent completed ${label} games`
+      : tabIndex === 1
+        ? `No ${label} games today`
+        : `No ${label} games tomorrow`;
 
   return (
     <div className="mb-4">
@@ -208,9 +255,10 @@ function LeagueSection({
             <div className="py-8 text-center">
               <p className="text-2xl mb-2">🏀</p>
               <p className="text-sm font-semibold text-muted-foreground/60">
-                No {label} games{dayOffset === 0 ? " today" : dayOffset === 1 ? " tomorrow" : " this day"}
+                {emptyMessage}
               </p>
-              {nextGameLabel && (
+              {/* "Next scheduled" hint only on Today / Tomorrow tabs */}
+              {tabIndex !== 0 && nextGameLabel && (
                 <p className="text-xs text-muted-foreground/40 mt-1">
                   Next scheduled: {nextGameLabel}
                 </p>
@@ -226,7 +274,7 @@ function LeagueSection({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function BasketballPage() {
-  // Shared day-tab state: 0 = Today, 1 = Tomorrow, 2 = Day After
+  // 0 = Recent, 1 = Today, 2 = Tomorrow
   const [selected, setSelected] = useState(0);
 
   // Overview state (fetched once)
@@ -235,11 +283,14 @@ export default function BasketballPage() {
   const [nbaLoading, setNbaLoading] = useState(true);
   const [wnbaLoading, setWnbaLoading] = useState(true);
 
-  // Games for selected day
+  // Games for the currently-selected tab
   const [nbaGames, setNbaGames] = useState<Game[] | null>(null);
   const [wnbaGames, setWnbaGames] = useState<Game[] | null>(null);
   const [nbaGamesLoading, setNbaGamesLoading] = useState(false);
   const [wnbaGamesLoading, setWnbaGamesLoading] = useState(false);
+
+  // Recent tab badge count — set once the backward search resolves
+  const [recentCount, setRecentCount] = useState(0);
 
   // Fetch overviews once on mount
   useEffect(() => {
@@ -272,55 +323,94 @@ export default function BasketballPage() {
     };
   }, []);
 
-  // Re-fetch games whenever selected tab changes.
-  // localDayOffset(selected) returns the LOCAL calendar Date for offset 0/1/2.
-  // localDateKey formats it to YYYYMMDD for the ESPN scoreboard endpoint.
+  // Re-fetch games whenever the selected tab changes.
   useEffect(() => {
-    const date = localDayOffset(selected); // 0 = today, 1 = tomorrow, 2 = day after
-    const dateKey = localDateKey(date);
+    const controller = new AbortController();
 
-    setNbaGamesLoading(true);
-    setWnbaGamesLoading(true);
     setNbaGames(null);
     setWnbaGames(null);
+    setNbaGamesLoading(true);
+    setWnbaGamesLoading(true);
 
-    fetchGamesByLeagueAndLocalDate("nba", dateKey)
-      .then((g: Game[]) => setNbaGames(g))
-      .catch(() => setNbaGames([]))
-      .finally(() => setNbaGamesLoading(false));
+    if (selected === 0) {
+      // ── Recent tab ────────────────────────────────────────────────────────
+      // Walk backwards from today until we find a day with completed games.
+      findRecentDate(controller.signal)
+        .then(({ nba, wnba }) => {
+          if (controller.signal.aborted) return;
+          setNbaGames(nba);
+          setWnbaGames(wnba);
+          setRecentCount(nba.length + wnba.length);
+        })
+        .catch(() => {
+          if (controller.signal.aborted) return;
+          setNbaGames([]);
+          setWnbaGames([]);
+          setRecentCount(0);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) {
+            setNbaGamesLoading(false);
+            setWnbaGamesLoading(false);
+          }
+        });
+    } else {
+      // ── Today (selected=1) → dayOffset 0 │ Tomorrow (selected=2) → dayOffset 1
+      const dayOffset = selected - 1;
+      const dateKey = localDateKey(localDayOffset(dayOffset));
 
-    fetchGamesByLeagueAndLocalDate("wnba", dateKey)
-      .then((g: Game[]) => setWnbaGames(g))
-      .catch(() => setWnbaGames([]))
-      .finally(() => setWnbaGamesLoading(false));
+      fetchGamesByLeagueAndLocalDate("nba", dateKey)
+        .then((g: Game[]) => {
+          if (!controller.signal.aborted) setNbaGames(g);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setNbaGames([]);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setNbaGamesLoading(false);
+        });
+
+      fetchGamesByLeagueAndLocalDate("wnba", dateKey)
+        .then((g: Game[]) => {
+          if (!controller.signal.aborted) setWnbaGames(g);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setWnbaGames([]);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setWnbaGamesLoading(false);
+        });
+    }
+
+    return () => controller.abort();
   }, [selected]);
 
   const totalLive =
     (nbaOverview?.live.length ?? 0) + (wnbaOverview?.live.length ?? 0);
 
-  // Tab counts — use local calendar dates (date-utils) so they're correct for any timezone.
-  // Live games are always counted on Today regardless of startTimeIso.
-  const counts = ([0, 1, 2] as const).map((offset) => {
-    const targetDate = localDateString(localDayOffset(offset));
-
-    const nbaAll = [
+  // Tab counts:
+  //   Recent (0)   → recentCount, populated after the backward search resolves
+  //   Today (1)    → live + upcoming games on today's local date
+  //   Tomorrow (2) → upcoming games on tomorrow's local date
+  const overviewCounts = ([0, 1] as const).map((dayOffset) => {
+    const targetDate = localDateString(localDayOffset(dayOffset));
+    const all = [
       ...(nbaOverview?.live ?? []),
       ...(nbaOverview?.upcoming ?? []),
-    ];
-    const wnbaAll = [
       ...(wnbaOverview?.live ?? []),
       ...(wnbaOverview?.upcoming ?? []),
     ];
-
-    return [...nbaAll, ...wnbaAll].filter((g) => {
-      if (offset === 0 && g.status === "in_progress") return true; // live → always today
-      if (!g.startTimeIso) return offset === 0; // no time → today only
+    return all.filter((g) => {
+      if (dayOffset === 0 && g.status === "in_progress") return true; // live → always today
+      if (!g.startTimeIso) return dayOffset === 0;
       return localDateString(new Date(g.startTimeIso)) === targetDate;
     }).length;
   });
 
-  // hasLive[i]: live games can only appear on Today
-  const hasLive: [boolean, boolean, boolean] = [totalLive > 0, false, false];
+  const counts = [recentCount, overviewCounts[0], overviewCounts[1]];
+
+  // Live indicator only applies to the Today tab (index 1)
+  const hasLive: [boolean, boolean, boolean] = [false, totalLive > 0, false];
 
   return (
     <MobileLayout title="Basketball" showBack backHref="/">
@@ -340,7 +430,7 @@ export default function BasketballPage() {
           </p>
         </div>
 
-        {/* Day tabs — same pill-tab style as cricket */}
+        {/* Day tabs — Recent / Today / Tomorrow */}
         <DayTabs
           selected={selected}
           onChange={setSelected}
@@ -357,7 +447,7 @@ export default function BasketballPage() {
             overviewLoading={nbaLoading}
             games={nbaGames}
             gamesLoading={nbaGamesLoading}
-            dayOffset={selected}
+            tabIndex={selected}
           />
           <LeagueSection
             leagueKey="wnba"
@@ -366,7 +456,7 @@ export default function BasketballPage() {
             overviewLoading={wnbaLoading}
             games={wnbaGames}
             gamesLoading={wnbaGamesLoading}
-            dayOffset={selected}
+            tabIndex={selected}
           />
         </div>
 
