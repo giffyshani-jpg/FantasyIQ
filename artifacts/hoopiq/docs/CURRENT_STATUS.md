@@ -2,7 +2,7 @@
 
 **Last updated**: July 28, 2026  
 **Build status**: ✅ TypeScript clean · Vite server running (HoopIQ workflow, port 21534)  
-**Git**: ✅ Local = GitHub = `318fbc8` — fully synchronized  
+**Git**: ✅ Local = GitHub = `33f556a` — fully synchronized  
 
 ---
 
@@ -10,11 +10,11 @@
 
 | Item | Status |
 |------|--------|
-| Local branch | `main` at `318fbc8` |
-| Remote (`origin/main`) | `318fbc8` |
+| Local branch | `main` at `33f556a` |
+| Remote (`origin/main`) | `33f556a` |
 | Uncommitted changes | None |
 | Unpushed commits | None |
-| Last pushed commit | `fix(bug5-routes): remove broken /cricket/:competition catch-all route` |
+| Last pushed commit | `fix(date-utils): extract shared local-timezone utility` |
 
 **Local and GitHub are fully in sync.** Nothing is missing from either side.
 
@@ -26,6 +26,12 @@
 - App title, meta tags, OG/Twitter cards → "FantasyIQ"
 - Lightning bolt logo, "Multi-Sport Fantasy" tagline
 - SessionStorage cache key: `fantasyiq:overview:`
+
+### Shared Date/Timezone Utility ✅ (NEW — `33f556a`)
+- **`src/lib/date-utils.ts`** — single source of truth for all local-timezone helpers
+- Exports: `localDateString`, `localDateStringFromIso`, `localDateKey`, `relativeDate`, `fmtDisplayDate`, `fmtTime`, `localDayOffset`
+- All three pages (`home.tsx`, `basketball.tsx`, `cricket-schedule.tsx`) import from here
+- No more duplicate date helpers scattered across page files
 
 ### Cricket ✅
 - **Dedicated `/cricket` route** — CricketSchedule page with Today/Tomorrow/Day-After tabs
@@ -40,12 +46,12 @@
 ### Basketball ✅
 - **Dedicated `/basketball` route** — NBA + WNBA sub-sections with separate date navigators
 - **Off-season handling**: "Next game: Mon, Oct 5" text; `isGameSoon()` 48h filter prevents fake game cards
-- **Local date in date navigator**: `eca4e0d` — WNBA/NBA pages use local date (not UTC)
-- **Prev-day ESPN scoreboard fetch**: `c1f889f` — fetches both local date and prev ESPN date, merges/deduplicates to avoid IST/AEST miss
+- **Local date in date navigator**: WNBA/NBA pages use `localDateKey()` from date-utils (not UTC)
+- **Prev-day ESPN scoreboard fetch**: fetches both local date and prev ESPN date, merges/deduplicates to avoid IST/AEST miss
 
 ### Cricket Bug Fixes ✅
 - **StatusBadge -8h window** (`cae2320`): matches provider's upcoming cutoff; no raw stale timestamps shown
-- **Local date for day tabs** (`87446ee`): Today/Tomorrow/Day-After use `toLocaleDateString` not UTC
+- **Local date for day tabs** (`87446ee` + `33f556a`): Today/Tomorrow/Day-After use `localDateString()` from date-utils
 - **Upcoming window +8h** (`4c9377b`): covers T20 (~3.5h) and ODI (~8h) durations
 
 ### Route Fix ✅
@@ -56,6 +62,7 @@
 - `src/providers/football.js` — TheSportsDB Soccer provider (no fantasy logic yet)
 
 ### Shared Infrastructure ✅
+- `src/lib/date-utils.ts` — all local-timezone date helpers (NEW)
 - `src/lib/provider-manager.ts` — `createProviderManager()` with reliability scoring
 - `src/lib/provider-health.ts` — per-provider health tracking
 - `src/lib/format-filter.ts` — format-aware stats
@@ -111,15 +118,17 @@ Basketball:
 
 ---
 
-## File Changes Since Last docs Update (July 25 → July 28)
+## File Changes (full history July 25 → July 28)
 
 | Commit | File(s) Changed | What |
 |--------|----------------|------|
-| `ef818ef` | `index.html`, `layout.tsx`, `api.js`, docs | FantasyIQ rebrand |
-| `4c9377b` | `src/providers/cricket.js` | Extend upcoming window to 8h |
-| `eca4e0d` | `src/pages/basketball.tsx` | Local date in date navigator |
-| `87446ee` | `src/pages/cricket-schedule.tsx` | Local date for day tabs |
-| `9cc461c` | `vite.config.ts` | PORT alignment (21534) |
-| `cae2320` | `src/pages/cricket-schedule.tsx` | StatusBadge -8h window |
-| `c1f889f` | `src/api.js`, `src/pages/basketball.tsx` | Prev-day ESPN scoreboard merge |
+| `33f556a` | `src/lib/date-utils.ts` (new), `home.tsx`, `basketball.tsx`, `cricket-schedule.tsx` | Shared local-timezone utility; remove all duplicate date helpers |
+| `a695c73` | docs | Update AI_HANDOFF + CURRENT_STATUS |
 | `318fbc8` | `src/App.tsx` | Remove broken `/cricket/:competition` catch-all route |
+| `c1f889f` | `src/api.js`, `src/pages/basketball.tsx` | Prev-day ESPN scoreboard merge |
+| `cae2320` | `src/pages/cricket-schedule.tsx` | StatusBadge -8h window |
+| `9cc461c` | `vite.config.ts` | PORT alignment (21534) |
+| `87446ee` | `src/pages/cricket-schedule.tsx` | Local date for day tabs |
+| `eca4e0d` | `src/pages/basketball.tsx` | Local date in date navigator |
+| `4c9377b` | `src/providers/cricket.js` | Extend upcoming window to 8h |
+| `ef818ef` | `index.html`, `layout.tsx`, `api.js`, docs | FantasyIQ rebrand |

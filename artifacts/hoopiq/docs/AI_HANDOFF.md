@@ -3,7 +3,7 @@
 Context for any agent picking up work on this codebase.
 
 > **Last updated**: July 28, 2026  
-> **Git**: Local `main` = `origin/main` = `318fbc8` — fully synchronized  
+> **Git**: Local `main` = `origin/main` = `33f556a` — fully synchronized  
 > **Build**: TypeScript clean · Vite running on port 21534 (`HoopIQ` workflow)
 
 ---
@@ -11,7 +11,9 @@ Context for any agent picking up work on this codebase.
 ## Current Git State
 
 ```
-318fbc8  fix(bug5-routes): remove broken /cricket/:competition catch-all route  ← HEAD = origin/main
+33f556a  fix(date-utils): extract shared local-timezone utility — fixes home date, match counts, Today/Tomorrow/Day-After, WNBA navigator  ← HEAD = origin/main
+a695c73  docs: update AI_HANDOFF and CURRENT_STATUS to reflect true state (July 28)
+318fbc8  fix(bug5-routes): remove broken /cricket/:competition catch-all route
 c1f889f  fix(bug2-basketball): fetch prev-day ESPN scoreboard and filter by local date
 cae2320  fix(bug1-cricket): extend StatusBadge 'Starting' window from 3h to 8h
 9cc461c  fix(preview): align dev server PORT with artifact.toml (21534)
@@ -37,6 +39,7 @@ artifacts/hoopiq/
       espn.js / nba.js / …    — basketball ESPN providers
       football.js             — TheSportsDB Soccer (infrastructure only)
     lib/
+      date-utils.ts           ← NEW: single source of truth for ALL local-timezone helpers
       types.ts                — LeagueKey union; "cricket" is a member
       cricket-types.ts        — CricketGame, CricketPlayer, CricketInnings, etc.
       cricket-scoring.ts      — scoring engine (T20/ODI/Test/Hundred/T10 profiles)
@@ -63,7 +66,7 @@ artifacts/hoopiq/
 5. **`isGameSoon(game)`** in `home.tsx` — 48h window filter for NBA/WNBA cards. Do not remove; ESPN returns Oct pre-season games year-round.
 6. **`fetchGamesByLeagueAndLocalDate()`** in `api.js` — fetches both local date AND prev ESPN date, merges by ID. Fixes IST/AEST users missing games. Do not revert to single-date fetch.
 7. **StatusBadge "Starting" window = 8h** in `cricket-schedule.tsx`. Matches provider's upcoming cutoff. Do not reduce.
-8. **Local date (not UTC) for all day tabs** — `fmtDate()` and `getLocalDateString()` use `toLocaleDateString`. Verified correct.
+8. **All date/time helpers live in `src/lib/date-utils.ts`** — do NOT add new local date helpers in page files. Import from date-utils instead. Functions: `localDateString`, `localDateStringFromIso`, `localDateKey`, `relativeDate`, `fmtDisplayDate`, `fmtTime`, `localDayOffset`.
 
 ---
 
@@ -125,7 +128,6 @@ git remote set-url origin https://<PAT>@github.com/giffyshani-jpg/Static-Site-Bu
 git push origin main
 git remote set-url origin https://github.com/giffyshani-jpg/Static-Site-Builder.git
 ```
-Or use the `gitPush({})` CodeExecution callback if GitHub is connected in the Replit pane.
 
 ---
 
