@@ -218,30 +218,37 @@ function DayGames({ overview, dayOffset, loading }: { overview: CricketLeagueOve
   let dayGames: CricketGame[];
 
   if (dayOffset === -1) {
-    // Recent: find the single most-recent date that has any completed game,
-    // then show all games from that date. Identical algorithm to basketball.tsx.
-    const completed = overview?.recentCompleted ?? [];
-    const latestDate = completed.reduce<string | null>((best, g) => {
-      const d = localDateStringFromIso(g.startTimeIso);
-      if (!d) return best;
-      return best === null || d > best ? d : best;
-    }, null);
-    dayGames = latestDate
-      ? completed.filter(g => localDateStringFromIso(g.startTimeIso) === latestDate)
-      : [];
-    // recentCompleted is already sorted newest-first from the provider
+    // Recent = ALL completed matches from the previous 48 hours.
+    //
+    // The provider already caps recentCompleted at 48 h so no extra filtering
+    // is needed here. We just display everything it returns, sorted newest-first
+    // (provider already sorts that way).
+    dayGames = overview?.recentCompleted ?? [];
   } else {
+    // Today (dayOffset=0) or Tomorrow (dayOffset=1).
+    // targetDate is the LOCAL calendar date for the selected offset.
     const targetDate = localDateString(new Date(Date.now() + dayOffset * 86_400_000));
 
     const allGames: CricketGame[] = [
       ...(overview?.live ?? []),
       ...(overview?.upcoming ?? []),
-      ...(dayOffset === 0 ? (overview?.lastPlayed ? [overview.lastPlayed] : []) : []),
+      // Include completed games whose LOCAL date matches the target day.
+      // This ensures matches that finished earlier today (or tomorrow, unlikely
+      // but possible for very early finishes in far-east timezones) still appear
+      // in the correct tab instead of vanishing.
+      ...(overview?.recentCompleted ?? []),
     ];
 
-    // Filter to target day (using local date from startTimeIso)
-    dayGames = allGames.filter(g => {
-      if (!g.startTimeIso) return dayOffset === 0; // no time? show on today only
+    // Deduplicate by id (live/upcoming/recentCompleted can overlap for in-progress→final transitions)
+    const seen = new Set<string>();
+    const deduped: CricketGame[] = [];
+    for (const g of allGames) {
+      if (!seen.has(g.id)) { seen.add(g.id); deduped.push(g); }
+    }
+
+    // Filter to the target local calendar date
+    dayGames = deduped.filter(g => {
+      if (!g.startTimeIso) return dayOffset === 0; // no time → show on today only
       return localDateStringFromIso(g.startTimeIso) === targetDate;
     });
   }
@@ -323,26 +330,28 @@ export default function CricketSchedule() {
   }, []);
 
   // Compute per-tab counts for badges.
-  // Tab 0 = Recent, Tab 1 = Today (offset 0), Tab 2 = Tomorrow (offset 1)
-  const recentCount = (() => {
-    const completed = overview?.recentCompleted ?? [];
-    const latestDate = completed.reduce<string | null>((best, g) => {
-      const d = localDateStringFromIso(g.startTimeIso);
-      if (!d) return best;
-      return best === null || d > best ? d : best;
-    }, null);
-    return latestDate ? completed.filter(g => localDateStringFromIso(g.startTimeIso) === latestDate).length : 0;
-  })();
+  // Tab 0 = Recent (all completed in last 48h)
+  // Tab 1 = Today (offset 0) — live + upcoming + completed today
+  // Tab 2 = Tomorrow (offset 1) — live + upcoming + completed tomorrow
+  const recentCount = overview?.recentCompleted?.length ?? 0;
 
   const counts = [
     recentCount,
     ...[0, 1].map(offset => {
       const targetDate = localDateString(new Date(Date.now() + offset * 86_400_000));
-      const all = [
+      const allForDay = [
         ...(overview?.live ?? []),
         ...(overview?.upcoming ?? []),
+        ...(overview?.recentCompleted ?? []),
       ];
-      return all.filter(g => g.startTimeIso && localDateStringFromIso(g.startTimeIso) === targetDate).length;
+      // Deduplicate
+      const seenIds = new Set<string>();
+      return allForDay.filter(g => {
+        if (!g.startTimeIso) return false;
+        if (seenIds.has(g.id)) return false;
+        seenIds.add(g.id);
+        return localDateStringFromIso(g.startTimeIso) === targetDate;
+      }).length;
     }),
   ];
 

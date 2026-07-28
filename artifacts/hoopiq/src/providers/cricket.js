@@ -37,30 +37,61 @@ const PROVIDER_NAME = "thesportsdb-cricket";
 // Used for league-based supplemental queries.
 // Supplement the day-based endpoint to catch leagues it misses.
 const KNOWN_LEAGUES = [
-  { id: 4460, name: "Indian Premier League",          format: "T20",  country: "India"      },
-  { id: 4461, name: "Big Bash League",                format: "T20",  country: "Australia"  },
-  { id: 4463, name: "Vitality T20 Blast",             format: "T20",  country: "England"    },
-  { id: 4458, name: "County Championship Div 1",      format: "Test", country: "England"    },
-  { id: 4459, name: "County Championship Div 2",      format: "Test", country: "England"    },
-  { id: 4462, name: "SA T20 Challenge",               format: "T20",  country: "South Africa" },
-  { id: 5067, name: "Pakistan Super League",          format: "T20",  country: "Pakistan"   },
-  { id: 5174, name: "Super Smash",                    format: "T20",  country: "New Zealand"},
-  { id: 5175, name: "Lanka Premier League",           format: "T20",  country: "Sri Lanka"  },
-  { id: 5176, name: "Caribbean Premier League",       format: "T20",  country: "West Indies"},
-  { id: 5529, name: "Bangladesh Premier League",      format: "T20",  country: "Bangladesh" },
-  { id: 5530, name: "Sheffield Shield",               format: "Test", country: "Australia"  },
-  { id: 5532, name: "SA20",                           format: "T20",  country: "South Africa" },
-  { id: 5533, name: "Nepal Premier League",           format: "T10",  country: "Nepal"      },
-  { id: 5534, name: "Shpageeza Cricket League",       format: "T20",  country: "Afghanistan"},
-  { id: 5535, name: "Zimbabwe T20",                   format: "T20",  country: "Zimbabwe"   },
-  { id: 5606, name: "Ireland T20 Trophy",             format: "T20",  country: "Ireland"    },
+  // ── Men's T20 franchise leagues ───────────────────────────────────────────
+  { id: 4460, name: "Indian Premier League",          format: "T20",  country: "India"       },
+  { id: 4461, name: "Big Bash League",                format: "T20",  country: "Australia"   },
+  { id: 4463, name: "Vitality T20 Blast",             format: "T20",  country: "England"     },
+  { id: 4462, name: "SA T20 Challenge",               format: "T20",  country: "South Africa"},
+  { id: 5067, name: "Pakistan Super League",          format: "T20",  country: "Pakistan"    },
+  { id: 5174, name: "Super Smash",                    format: "T20",  country: "New Zealand" },
+  { id: 5175, name: "Lanka Premier League",           format: "T20",  country: "Sri Lanka"   },
+  { id: 5176, name: "Caribbean Premier League",       format: "T20",  country: "West Indies" },
+  { id: 5529, name: "Bangladesh Premier League",      format: "T20",  country: "Bangladesh"  },
+  { id: 5532, name: "SA20",                           format: "T20",  country: "South Africa"},
+  { id: 5533, name: "Nepal Premier League",           format: "T10",  country: "Nepal"       },
+  { id: 5534, name: "Shpageeza Cricket League",       format: "T20",  country: "Afghanistan" },
+  { id: 5535, name: "Zimbabwe T20",                   format: "T20",  country: "Zimbabwe"    },
+  { id: 5606, name: "Ireland T20 Trophy",             format: "T20",  country: "Ireland"     },
+  // ── The Hundred ───────────────────────────────────────────────────────────
+  { id: 5561, name: "The Hundred Men's Competition",  format: "The Hundred", country: "England" },
+  { id: 5562, name: "The Hundred Women's Competition",format: "The Hundred", country: "England" },
+  // ── Test / First-class ────────────────────────────────────────────────────
+  { id: 4458, name: "County Championship Div 1",      format: "Test", country: "England"     },
+  { id: 4459, name: "County Championship Div 2",      format: "Test", country: "England"     },
+  { id: 5530, name: "Sheffield Shield",               format: "Test", country: "Australia"   },
+  // ── International (ICC) ───────────────────────────────────────────────────
+  { id: 4455, name: "ICC T20 World Cup",              format: "T20",  country: "International"},
+  { id: 4456, name: "ICC Cricket World Cup",          format: "ODI",  country: "International"},
+  { id: 4457, name: "ICC Champions Trophy",           format: "ODI",  country: "International"},
+  { id: 4464, name: "International Twenty20",         format: "T20",  country: "International"},
+  { id: 4465, name: "International Test Cricket",     format: "Test", country: "International"},
+  { id: 4466, name: "International ODI Cricket",      format: "ODI",  country: "International"},
+  // ── Women's international ─────────────────────────────────────────────────
+  { id: 4902, name: "ICC Women's T20 World Cup",      format: "T20",  country: "International"},
+  { id: 4903, name: "ICC Women's Cricket World Cup",  format: "ODI",  country: "International"},
+  { id: 4904, name: "Women's International T20",      format: "T20",  country: "International"},
+  { id: 4905, name: "Women's International ODI",      format: "ODI",  country: "International"},
+  // ── Women's domestic ─────────────────────────────────────────────────────
+  { id: 5560, name: "Women's Premier League",         format: "T20",  country: "India"       },
+  { id: 5607, name: "Women's Big Bash League",        format: "T20",  country: "Australia"   },
+  { id: 5608, name: "Rachael Heyhoe Flint Trophy",    format: "ODI",  country: "England"     },
+  // ── T10 ──────────────────────────────────────────────────────────────────
+  { id: 5563, name: "Abu Dhabi T10",                  format: "T10",  country: "UAE"         },
 ];
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
+/**
+ * Returns YYYY-MM-DD in the user's LOCAL timezone.
+ *
+ * TSDB `eventsday.php` keys events by the HOST COUNTRY local date, so a match
+ * in India on "2026-07-29" is stored under that key regardless of what UTC
+ * says. Using UTC here would silently drop matches for viewers in timezones
+ * that are ahead of UTC (IST, AEST, etc.) when their local date differs from
+ * the UTC date.
+ */
 function fmtDate(date) {
-  // Always produce UTC date string to avoid timezone drift
-  return date.toISOString().slice(0, 10);
+  return date.toLocaleDateString("en-CA"); // always YYYY-MM-DD in LOCAL zone
 }
 
 function fmtTime(isoDate) {
@@ -82,9 +113,10 @@ function makeAbbreviation(name) {
 function detectFormat(leagueName) {
   const n = (leagueName || "").toLowerCase();
   if (/hundred/.test(n)) return "The Hundred";
-  if (/test|shield|championship/.test(n)) return "Test";
-  if (/t10/.test(n)) return "T10";
-  if (/odi|one.?day/.test(n)) return "ODI";
+  if (/test|shield|championship|first.?class/.test(n)) return "Test";
+  if (/t10|abu.?dhabi.?t10|mzansi/.test(n)) return "T10";
+  if (/odi|one.?day|world.?cup(?!.*t20)|champions.?trophy/.test(n)) return "ODI";
+  // T20 catch-all (covers IPL, T20 Blast, PSL, BBL, LPL, CPL, T20I, etc.)
   return "T20";
 }
 
@@ -169,12 +201,14 @@ function normalizeTsdbEvent(ev) {
       } catch {}
     }
     if (!startTimeIso && ev.dateEvent) {
-      // strTime from TSDB is in the event's local timezone — approximate with UTC noon
-      // to avoid showing the match in the wrong day for viewers in different timezones.
-      const timeStr = ev.strTime || "12:00:00";
+      // strTime from TSDB is the LOCAL time at the venue, NOT UTC.
+      // We cannot reliably convert it to UTC without knowing the venue timezone,
+      // so we use UTC noon on the event date as a safe proxy. UTC noon ensures
+      // the match appears on the correct local calendar day for viewers in
+      // timezones between UTC-11 and UTC+11 (covers almost all cricket nations).
+      // The actual time is displayed separately from TSDB's strTime field.
       try {
-        // Prefer treating time as UTC
-        const d = new Date(`${ev.dateEvent}T${timeStr}Z`);
+        const d = new Date(`${ev.dateEvent}T12:00:00Z`);
         if (!isNaN(d.getTime())) startTimeIso = d.toISOString();
         else startTimeIso = ev.dateEvent + "T12:00:00Z";
       } catch {
@@ -320,8 +354,18 @@ async function fetchLeagueEvents(leagueId) {
 export async function getLeagueOverview() {
   const now = new Date();
 
-  // Day-based: yesterday, today, +1, +2, +3 days (all UTC dates)
-  const dayDates = [-1, 0, 1, 2, 3].map(offset =>
+  // Day-based: query LOCAL calendar dates from -2 to +3 relative to today.
+  //
+  // Why -2? Users in UTC+14 (Pacific islands) or UTC+12 (NZ) have a local
+  // "today" that is 1-2 days ahead of UTC, so their "yesterday" in local time
+  // is still today or tomorrow UTC. Querying -2 local ensures completed games
+  // from the past 48 hours are always captured for every timezone.
+  //
+  // Why +3? Covers upcoming matches up to 3 local days ahead, including The
+  // Hundred / LPL fixtures that TSDB may publish days in advance.
+  //
+  // We deduplicate by game ID after merging so there is no double-counting.
+  const dayDates = [-2, -1, 0, 1, 2, 3].map(offset =>
     fmtDate(new Date(now.getTime() + offset * 86_400_000))
   );
 
@@ -362,9 +406,23 @@ export async function getLeagueOverview() {
       new Date(a.startTimeIso ?? 0).getTime() - new Date(b.startTimeIso ?? 0).getTime()
     );
 
-  // Recent completed
+  // Recent completed — all finals within the last 48 hours.
+  //
+  // The league-based supplement fetches "past 15 events" per league, which can
+  // include games weeks or months old. Capping at 48 h ensures the "Recent" tab
+  // only shows genuinely recent results and doesn't pollute today/tomorrow filters
+  // with stale data.
+  //
+  // Why 48 h (not 24 h)? The Hundred, LPL, and International matches often finish
+  // late local time; a viewer in UTC+5:30 checking next morning needs to still see
+  // yesterday's completed games, which can be up to ~36 h ago in UTC.
+  const cutoff48h = now.getTime() - 48 * 3600 * 1000;
   const recentCompleted = all
-    .filter(g => g.status === "final")
+    .filter(g => {
+      if (g.status !== "final") return false;
+      if (!g.startTimeIso) return false;
+      return new Date(g.startTimeIso).getTime() >= cutoff48h;
+    })
     .sort((a, b) =>
       new Date(b.startTimeIso ?? 0).getTime() - new Date(a.startTimeIso ?? 0).getTime()
     );
