@@ -3,15 +3,20 @@
 // Route: /cricket/:competition/game/:id
 //
 // Shows batting and bowling scorecards for each innings, live status,
-// and a link to the cricket fantasy optimizer.
+// AI Rating badges on each player row (Task 1), and a link to the cricket
+// fantasy optimizer.
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "wouter";
 import { MobileLayout } from "../components/layout";
 import { fetchCricketGame } from "../api";
 import type { CricketGame, CricketInnings, CricketPlayer } from "../lib/cricket-types";
 import { calculateCricketFantasyPoints, getScoringProfile } from "../lib/cricket-scoring";
 import { MatchIntelligenceCard } from "../components/cricket-match-intelligence";
+import {
+  computeAllPlayerRatings,
+  type PlayerAIRating,
+} from "../lib/ai-player-rating";
 
 // ─── Icons ─────────────────────────────────────────────────────────────────
 
@@ -33,6 +38,26 @@ function ZapIcon({ size = 14 }: { size?: number }) {
   );
 }
 
+// ─── AI Rating Badge (Task 1) ──────────────────────────────────────────────
+
+function AIRatingBadge({ rating }: { rating: PlayerAIRating }) {
+  const colorCls =
+    rating.overall >= 85 ? "text-yellow-300 bg-yellow-900/30 border-yellow-700/40" :
+    rating.overall >= 72 ? "text-green-300 bg-green-900/30 border-green-700/40" :
+    rating.overall >= 58 ? "text-blue-300 bg-blue-900/30 border-blue-700/40" :
+    rating.overall >= 44 ? "text-slate-400 bg-slate-800/40 border-slate-600/30" :
+    "text-red-400/70 bg-red-900/20 border-red-700/30";
+
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 text-[9px] font-black rounded px-1.5 py-0.5 border ${colorCls} shrink-0`}
+      title={`AI Rating: ${rating.overall}/100 — ${rating.label}`}
+    >
+      AI {rating.overall}
+    </span>
+  );
+}
+
 // ─── Skeleton ──────────────────────────────────────────────────────────────
 
 function Skeleton() {
@@ -48,7 +73,7 @@ function Skeleton() {
 // ─── Score header ─────────────────────────────────────────────────────────
 
 function MatchHeader({ game }: { game: CricketGame }) {
-  const isLive = game.status === "in_progress";
+  const isLive  = game.status === "in_progress";
   const isFinal = game.status === "final";
 
   return (
@@ -142,7 +167,15 @@ function MatchHeader({ game }: { game: CricketGame }) {
 
 // ─── Batting scorecard ────────────────────────────────────────────────────
 
-function BattingCard({ innings, profile }: { innings: CricketInnings; profile: ReturnType<typeof getScoringProfile> }) {
+function BattingCard({
+  innings,
+  profile,
+  ratings,
+}: {
+  innings: CricketInnings;
+  profile: ReturnType<typeof getScoringProfile>;
+  ratings: Map<string, PlayerAIRating>;
+}) {
   const players = innings.battingTeam.players.filter((p) => p.stats?.batting);
 
   if (players.length === 0) return null;
@@ -159,8 +192,9 @@ function BattingCard({ innings, profile }: { innings: CricketInnings; profile: R
       </div>
 
       {/* Header row */}
-      <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-1 px-4 py-1.5 border-b border-border/20">
+      <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto] gap-1 px-4 py-1.5 border-b border-border/20">
         <span className="text-[10px] font-semibold text-muted-foreground/60">Batter</span>
+        <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-8">AI</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">R</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">B</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">4s</span>
@@ -172,8 +206,10 @@ function BattingCard({ innings, profile }: { innings: CricketInnings; profile: R
         const bat = p.stats.batting!;
         const pts = calculateCricketFantasyPoints(p.stats, profile);
         const notOut = !bat.dismissed;
+        const aiRating = ratings.get(p.id);
         return (
-          <div key={p.id} className={`grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-1 px-4 py-2.5 items-start ${i < players.length - 1 ? "border-b border-border/15" : ""}`}>
+          <div key={p.id}
+            className={`grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto] gap-1 px-4 py-2.5 items-start ${i < players.length - 1 ? "border-b border-border/15" : ""}`}>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-foreground truncate">
                 {p.name}
@@ -182,6 +218,10 @@ function BattingCard({ innings, profile }: { innings: CricketInnings; profile: R
               {bat.dismissal && !notOut && (
                 <p className="text-[10px] text-muted-foreground/50 truncate mt-0.5">{bat.dismissal}</p>
               )}
+            </div>
+            {/* AI Rating badge */}
+            <div className="flex items-center justify-end w-8">
+              {aiRating ? <AIRatingBadge rating={aiRating} /> : <span className="w-8" />}
             </div>
             <span className={`text-sm font-bold text-right w-7 ${bat.runs >= 50 ? "text-yellow-400" : bat.runs >= 25 ? "text-orange-400" : "text-foreground"}`}>
               {bat.runs}
@@ -201,7 +241,15 @@ function BattingCard({ innings, profile }: { innings: CricketInnings; profile: R
 
 // ─── Bowling scorecard ────────────────────────────────────────────────────
 
-function BowlingCard({ innings, profile }: { innings: CricketInnings; profile: ReturnType<typeof getScoringProfile> }) {
+function BowlingCard({
+  innings,
+  profile,
+  ratings,
+}: {
+  innings: CricketInnings;
+  profile: ReturnType<typeof getScoringProfile>;
+  ratings: Map<string, PlayerAIRating>;
+}) {
   const players = innings.bowlingTeam.players.filter((p) => p.stats?.bowling);
   if (players.length === 0) return null;
 
@@ -214,8 +262,9 @@ function BowlingCard({ innings, profile }: { innings: CricketInnings; profile: R
       </div>
 
       {/* Header row */}
-      <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-1 px-4 py-1.5 border-b border-border/20">
+      <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto] gap-1 px-4 py-1.5 border-b border-border/20">
         <span className="text-[10px] font-semibold text-muted-foreground/60">Bowler</span>
+        <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-8">AI</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">O</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">M</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">R</span>
@@ -227,9 +276,15 @@ function BowlingCard({ innings, profile }: { innings: CricketInnings; profile: R
         const bowl = p.stats.bowling!;
         const oversStr = bowl.extraBalls > 0 ? `${bowl.overs}.${bowl.extraBalls}` : `${bowl.overs}`;
         const pts = calculateCricketFantasyPoints(p.stats, profile);
+        const aiRating = ratings.get(p.id);
         return (
-          <div key={p.id} className={`grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-1 px-4 py-2.5 items-center ${i < players.length - 1 ? "border-b border-border/15" : ""}`}>
+          <div key={p.id}
+            className={`grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto] gap-1 px-4 py-2.5 items-center ${i < players.length - 1 ? "border-b border-border/15" : ""}`}>
             <p className="text-sm font-semibold text-foreground truncate">{p.name}</p>
+            {/* AI Rating badge */}
+            <div className="flex items-center justify-end w-8">
+              {aiRating ? <AIRatingBadge rating={aiRating} /> : <span className="w-8" />}
+            </div>
             <span className="text-xs text-muted-foreground text-right w-7">{oversStr}</span>
             <span className="text-xs text-muted-foreground text-right w-7">{bowl.maidens}</span>
             <span className="text-xs text-muted-foreground text-right w-7">{bowl.runsConceded}</span>
@@ -248,7 +303,15 @@ function BowlingCard({ innings, profile }: { innings: CricketInnings; profile: R
 
 // ─── Innings section ──────────────────────────────────────────────────────
 
-function InningsSection({ innings, game }: { innings: CricketInnings; game: CricketGame }) {
+function InningsSection({
+  innings,
+  game,
+  ratings,
+}: {
+  innings: CricketInnings;
+  game: CricketGame;
+  ratings: Map<string, PlayerAIRating>;
+}) {
   const profile = getScoringProfile(game.format, game.competitionName);
   const label = innings.inningsNumber === 1 ? "1st Innings" : "2nd Innings";
 
@@ -257,11 +320,13 @@ function InningsSection({ innings, game }: { innings: CricketInnings; game: Cric
       <div className="flex items-center gap-2 px-1">
         <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">{label}</span>
         {innings.status === "in_progress" && (
-          <span className="text-[10px] font-bold text-primary bg-primary/10 rounded-full px-2 py-0.5">In Progress</span>
+          <span className="text-[10px] font-bold text-primary bg-primary/10 rounded-full px-2 py-0.5">
+            In Progress
+          </span>
         )}
       </div>
-      <BattingCard innings={innings} profile={profile} />
-      <BowlingCard innings={innings} profile={profile} />
+      <BattingCard innings={innings} profile={profile} ratings={ratings} />
+      <BowlingCard innings={innings} profile={profile} ratings={ratings} />
     </div>
   );
 }
@@ -291,14 +356,15 @@ function NoScorecard({ game }: { game: CricketGame }) {
 export default function CricketBoxScore() {
   const params = useParams<{ competition: string; id: string }>();
   const competition = params.competition ?? "";
-  const rawId = params.id ?? "";
-  // id may be encoded as slug:eventId or just the raw game ID
-  const gameId = decodeURIComponent(rawId).includes(":") ? decodeURIComponent(rawId) : `${competition}:${rawId}`;
+  const rawId       = params.id ?? "";
+  const gameId      = decodeURIComponent(rawId).includes(":")
+    ? decodeURIComponent(rawId)
+    : `${competition}:${rawId}`;
 
-  const [game, setGame] = useState<CricketGame | null>(null);
+  const [game, setGame]       = useState<CricketGame | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [error, setError]     = useState<string | null>(null);
+  const pollRef               = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -310,7 +376,7 @@ export default function CricketBoxScore() {
           setGame(data as CricketGame);
           setError(null);
         }
-      } catch (e: unknown) {
+      } catch {
         if (!cancelled) setError("Failed to load match data");
       } finally {
         if (!cancelled) setLoading(false);
@@ -336,6 +402,29 @@ export default function CricketBoxScore() {
     }, 30_000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [game?.status, gameId]);
+
+  // ── Compute AI ratings for all players once per game load ──────────────
+  const playerRatings = useMemo<Map<string, PlayerAIRating>>(() => {
+    if (!game) return new Map();
+    const allPlayers: CricketPlayer[] = [];
+    const seen = new Set<string>();
+    const push = (p: CricketPlayer) => { if (!seen.has(p.id)) { seen.add(p.id); allPlayers.push(p); } };
+
+    for (const inn of game.innings) {
+      for (const p of inn.battingTeam.players)  push(p);
+      for (const p of inn.bowlingTeam.players)  push(p);
+    }
+    if (allPlayers.length === 0) {
+      for (const p of game.homeTeam.players) push(p);
+      for (const p of game.awayTeam.players) push(p);
+    }
+
+    return computeAllPlayerRatings(allPlayers, {
+      format: game.format,
+      competitionName: game.competitionName,
+      isBattingFriendly: true,
+    });
+  }, [game?.id, game?.innings.length]);
 
   return (
     <MobileLayout>
@@ -376,7 +465,7 @@ export default function CricketBoxScore() {
               <NoScorecard game={game} />
             ) : (
               game.innings.map((inn) => (
-                <InningsSection key={inn.inningsNumber} innings={inn} game={game} />
+                <InningsSection key={inn.inningsNumber} innings={inn} game={game} ratings={playerRatings} />
               ))
             )}
           </>
