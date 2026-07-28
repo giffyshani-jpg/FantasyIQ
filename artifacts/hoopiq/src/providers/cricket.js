@@ -448,41 +448,133 @@ export async function getLeagueOverview() {
   return { live, upcoming, lastPlayed, recentCompleted, activeCompetitions };
 }
 
+// ─── Game detail cache ─────────────────────────────────────────────────────
+
+const GAME_CACHE = new Map(); // gameId → { game, fetchedAt }
+const GAME_CACHE_TTL_FINAL     = 10 * 60 * 1000; // 10 min for completed
+const GAME_CACHE_TTL_SCHEDULED =  2 * 60 * 1000; //  2 min for scheduled
+
+function getCachedGame(gameId) {
+  const entry = GAME_CACHE.get(gameId);
+  if (!entry) return null;
+  const ttl = entry.game?.status === "final" ? GAME_CACHE_TTL_FINAL : GAME_CACHE_TTL_SCHEDULED;
+  return (Date.now() - entry.fetchedAt < ttl) ? entry.game : null;
+}
+function setCachedGame(gameId, game) {
+  GAME_CACHE.set(gameId, { game, fetchedAt: Date.now() });
+}
+
 /**
- * Fetches a cricket game by ID.
- * TSDB game IDs use format "tsdb:{idEvent}".
+ * Searches ALL in-memory day and league caches for a game by ID.
+ * Used as Provider 2 fallback when lookupevent.php fails.
+ */
+function findInCache(gameId) {
+  for (const [, entry] of DAY_CACHE) {
+    if (!entry?.games) continue;
+    const hit = entry.games.find(g => g.id === gameId);
+    if (hit) return hit;
+  }
+  for (const [, entry] of LEAGUE_CACHE) {
+    if (!entry?.events) continue;
+    const hit = entry.events.find(g => g.id === gameId);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/**
+ * Provider 3: construct a minimal game shell from the gameId string.
+ * This is a last resort — it produces a displayable object with status=scheduled
+ * so the UI never renders a blank page. Teams and venue will be unknown.
+ */
+function buildMinimalGame(gameId) {
+  const unknown = { id: "unk", name: "Unknown", abbreviation: "UNK", score: null, overs: null, players: [] };
+  return {
+    id: gameId,
+    competitionSlug: "cricket",
+    competitionName: "Cricket",
+    format: "T20",
+    homeTeam: { ...unknown },
+    awayTeam: { ...unknown },
+    startTime: "",
+    startTimeIso: null,
+    status: "scheduled",
+    period: undefined,
+    statusDetail: null,
+    innings: [],
+    result: null,
+    venue: null,
+    allPlayers: [],
+    _provider: "minimal-fallback",
+  };
+}
+
+/**
+ * Fetches a cricket game by ID with a 3-tier fallback chain.
  *
- * Returns the base game from cache with empty innings (TSDB free tier
- * doesn't provide detailed scorecard data).
+ * Provider 1 — TSDB lookupevent.php (direct lookup, best data)
+ * Provider 2 — In-memory cache scan (day + league caches from getLeagueOverview)
+ * Provider 3 — Minimal game shell (never null, always renderable)
+ *
+ * Logs which provider succeeded so the UI can surface it for debugging.
  */
 export async function fetchGameById(gameId, { noCache = false } = {}) {
+  // Quick return from game-level cache
+  if (!noCache) {
+    const hit = getCachedGame(gameId);
+    if (hit) { console.info(`[cricket] fetchGameById hit game-cache: ${gameId}`); return hit; }
+  }
+
   const eventId = gameId.startsWith("tsdb:") ? gameId.slice(5) : gameId;
 
+  // ── Provider 1: TSDB lookupevent.php ──────────────────────────────────────
   const t0 = Date.now();
   try {
     const data = await fetchTsdb(`lookupevent.php?id=${eventId}`);
     const ev = data?.events?.[0];
-    if (!ev) return null;
-    recordSuccess(PROVIDER_NAME, Date.now() - t0);
-    const game = normalizeTsdbEvent(ev);
-    if (game) game.allPlayers = [];
-    return game;
+    if (ev) {
+      recordSuccess(PROVIDER_NAME, Date.now() - t0);
+      const game = normalizeTsdbEvent(ev);
+      if (game) {
+        game.allPlayers = [];
+        game._provider = "tsdb-lookupevent";
+        setCachedGame(gameId, game);
+        console.info(`[cricket] Provider 1 (TSDB lookupevent) succeeded: ${gameId}`);
+        return game;
+      }
+    }
   } catch (err) {
     recordFailure(PROVIDER_NAME, err?.message ?? "lookup failed");
-    return null;
+    console.warn(`[cricket] Provider 1 (TSDB lookupevent) failed for ${gameId}:`, err?.message);
   }
+
+  // ── Provider 2: In-memory cache scan ─────────────────────────────────────
+  const cached = findInCache(gameId);
+  if (cached) {
+    const game = { ...cached, allPlayers: [], _provider: "cache-scan" };
+    setCachedGame(gameId, game);
+    console.info(`[cricket] Provider 2 (cache scan) succeeded: ${gameId}`);
+    return game;
+  }
+  console.warn(`[cricket] Provider 2 (cache scan) missed: ${gameId}`);
+
+  // ── Provider 3: Minimal game shell (graceful fallback — never null) ───────
+  console.warn(`[cricket] Provider 3 (minimal fallback) used: ${gameId}`);
+  const minimal = buildMinimalGame(gameId);
+  // Don't cache minimal shells — retry fresh on next navigation
+  return minimal;
 }
 
 /**
  * Returns the roster for a cricket game.
- * TSDB free tier doesn't provide player rosters.
+ * TSDB free tier doesn't provide player rosters; returns empty struct.
  */
 export async function fetchGameRoster(gameId) {
   return { homeTeam: null, awayTeam: null, allPlayers: [] };
 }
 
-/** Returns the match format for a given game ID. */
+/** Returns the match format for a given game ID — best effort from cache. */
 export function getMatchFormat(gameId) {
-  // Best effort from cache
-  return "T20";
+  const cached = GAME_CACHE.get(gameId);
+  return cached?.game?.format ?? "T20";
 }

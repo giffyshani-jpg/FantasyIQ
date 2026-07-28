@@ -761,9 +761,22 @@ export default function CricketOptimizer() {
               </div>
 
               {allPlayers.length === 0 ? (
-                <div className="py-8 text-center">
-                  <p className="text-sm text-muted-foreground">No player data available</p>
-                  <p className="text-xs text-muted-foreground/50 mt-1">Match may not have started yet</p>
+                <div className="py-8 text-center px-4">
+                  <p className="text-2xl mb-2">🏏</p>
+                  <p className="text-sm font-semibold text-muted-foreground">No player data available</p>
+                  <p className="text-xs text-muted-foreground/50 mt-1.5 leading-relaxed">
+                    {game?.status === "scheduled"
+                      ? "Playing XI is not yet available. Player data appears once the match starts and squads are announced."
+                      : game?.status === "final"
+                      ? "Scorecard data not available from TheSportsDB free tier. Try another completed match."
+                      : "Live player data is not provided by the free data tier. Check back closer to match time."}
+                  </p>
+                  {game && (
+                    <div className="mt-3 flex flex-col gap-1 text-[10px] text-muted-foreground/40">
+                      {game.venue && <span>📍 {game.venue}</span>}
+                      {game.competitionName && <span>🏆 {game.competitionName}</span>}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="max-h-[500px] overflow-y-auto">

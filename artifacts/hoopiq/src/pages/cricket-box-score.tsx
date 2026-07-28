@@ -363,22 +363,107 @@ function InningsSection({
   );
 }
 
-// ─── No scorecard fallback ────────────────────────────────────────────────
+// ─── Pre-match / No-scorecard panel ──────────────────────────────────────
+//
+// Task 3: Never leave a blank page. Show all available data regardless of
+// whether a scorecard exists. Scheduled → pre-match panel. Completed without
+// scorecard → result + venue + match summary.
+
+function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
+  if (!value) return null;
+  return (
+    <div className="flex items-start gap-2.5 py-2 border-b border-border/15 last:border-0">
+      <span className="text-base shrink-0 mt-0.5">{icon}</span>
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider">{label}</p>
+        <p className="text-sm font-semibold text-foreground mt-0.5">{value}</p>
+      </div>
+    </div>
+  );
+}
 
 function NoScorecard({ game }: { game: CricketGame }) {
+  const isScheduled  = game.status === "scheduled";
+  const isInProgress = game.status === "in_progress";
+  const isFinal      = game.status === "final";
+
+  const { fmtTime: formatTime } = (() => {
+    // local import-like pattern — use the same util but keep this component self-contained
+    return { fmtTime: (iso: string | null | undefined) => {
+      if (!iso) return "";
+      try { return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", weekday: "short", month: "short", day: "numeric" }).format(new Date(iso)); }
+      catch { return ""; }
+    }};
+  })();
+
   return (
-    <div className="rounded-2xl border border-border/40 border-dashed p-6 text-center">
-      <p className="text-2xl mb-2">🏏</p>
-      <p className="text-sm font-semibold text-muted-foreground">
-        {game.status === "scheduled"
-          ? "Match hasn't started yet"
-          : "Detailed scorecard not available"}
-      </p>
-      <p className="text-xs text-muted-foreground/50 mt-1">
-        {game.status === "scheduled"
-          ? `Starts ${game.startTime || "soon"}`
-          : "ESPN may not have provided ball-by-ball data"}
-      </p>
+    <div className="rounded-2xl border border-border/40 overflow-hidden bg-card">
+      {/* Section header */}
+      <div className="flex items-center gap-2 px-4 py-3 bg-muted/20 border-b border-border/30">
+        <span className="text-base">
+          {isScheduled ? "📅" : isInProgress ? "🔴" : isFinal ? "🏁" : "🏏"}
+        </span>
+        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          {isScheduled  ? "Match Preview"
+           : isInProgress ? "In Progress — Scorecard Unavailable"
+           : isFinal      ? "Match Completed — Scorecard Unavailable"
+           : "Match Info"}
+        </span>
+      </div>
+
+      <div className="px-4 py-2">
+        {/* Result (completed) */}
+        {isFinal && game.result && (
+          <div className="py-2 mb-1">
+            <p className="text-sm font-bold text-green-300">{game.result}</p>
+          </div>
+        )}
+
+        {/* Scheduled: countdown message */}
+        {isScheduled && game.startTimeIso && (
+          <div className="py-2 mb-1">
+            <p className="text-sm font-semibold text-amber-300/80">
+              Starts {formatTime(game.startTimeIso)}
+            </p>
+            <p className="text-xs text-muted-foreground/50 mt-0.5">
+              Live scoring data will appear once the match begins
+            </p>
+          </div>
+        )}
+
+        {/* Venue */}
+        <InfoRow icon="📍" label="Venue" value={game.venue ?? ""} />
+
+        {/* Competition */}
+        <InfoRow icon="🏆" label="Competition" value={game.competitionName ?? ""} />
+
+        {/* Format */}
+        <InfoRow icon="📋" label="Format" value={game.format ?? ""} />
+
+        {/* Status detail */}
+        {game.statusDetail && game.statusDetail !== game.result && (
+          <InfoRow icon="ℹ️" label="Status" value={game.statusDetail} />
+        )}
+
+        {/* Optimizer CTA for upcoming matches */}
+        {(isScheduled || isInProgress) && (
+          <div className="mt-3 pt-2 border-t border-border/20">
+            <p className="text-[10px] text-muted-foreground/40">
+              {isScheduled
+                ? "Use the Fantasy Optimizer above to build your lineup before the match"
+                : "Detailed ball-by-ball data not available from TheSportsDB free tier"}
+            </p>
+          </div>
+        )}
+
+        {isFinal && !game.result && (
+          <div className="mt-2 pt-2 border-t border-border/20">
+            <p className="text-[10px] text-muted-foreground/40">
+              Detailed scorecard not available — TheSportsDB free tier provides results only
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
