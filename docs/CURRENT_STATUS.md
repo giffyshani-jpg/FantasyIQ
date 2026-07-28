@@ -1,6 +1,6 @@
 # FantasyIQ — Current Status
 
-**Last updated:** 2026-07-28 (Feature Session 2 — Tasks 1–3 complete, Task 4 smoke-tested)
+**Last updated:** 2026-07-28 (Feature Session 3 — Task 1 AI Insights Panel + Task 2 Player AI Badges)
 **HEAD:** see latest commit
 **Repo:** https://github.com/giffyshani-jpg/FantasyIQ
 
@@ -29,95 +29,77 @@ Note: `PORT` and `BASE_PATH` are **required** for both dev and build — vite.co
 - Box score, optimizer, play-by-play, player comparison, player detail
 - AI Fantasy Coach (12 named picks with data-backed explanations)
 
+## AI Engine (Feature Session 3)
+
+### ✅ Task 1 — AI Insights Panel (rebuilt)
+
+**Files modified:**
+- `artifacts/hoopiq/src/lib/cricket-ai-intelligence.ts` — added `riskPick` + `teamConfidencePct` to `CaptainVCEngine`; `CaptainLabel` now includes `RISK_PICK`
+- `artifacts/hoopiq/src/components/cricket-match-intelligence.tsx` — new polished `AIInsightsPanel` section
+
+**New `AIInsightsPanel` inside the Cricket Match Intelligence card:**
+| Signal | What it shows |
+|--------|---------------|
+| ⭐ Best Captain | Player name, AI rating, score, confidence |
+| ⭐ Best VC | Player name, AI rating, score, confidence |
+| 🔥 Differential Pick | Compact pick chip (last name + AI rating) |
+| 🛡 Safe Pick | Compact pick chip |
+| ⚠ Risk Pick | Compact pick chip (new — high-variance boom-or-bust) |
+| 📈 Team Confidence % | Bar + percentage |
+| 🎯 Match Difficulty | Level label + /100 score + bar |
+| 🌤 Weather | Label (placeholder until API wired) |
+| 🏟 Pitch | Surface label + batting % bar |
+| 🪙 Toss Importance | Label + importance % bar |
+
+**New engine fields:**
+- `riskPick: CaptainVCPick` — 5th pick, high-variance batter/bowler outside main 4
+- `teamConfidencePct: number` — avg of C+VC confidence, adjusted by format risk level
+
+**Commit:** `0ad74c2`
+
+### ✅ Task 2 — Player AI Badges (new)
+
+**Files modified:**
+- `artifacts/hoopiq/src/lib/ai-player-rating.ts` — new `PlayerBadge` type + `computePlayerBadge()` function
+- `artifacts/hoopiq/src/pages/cricket-box-score.tsx` — `PlayerBadgeChip` component; badges on batting + bowling rows
+- `artifacts/hoopiq/src/pages/cricket-optimizer.tsx` — `AIRatingChip` + `PlayerBadgeChip` on every PlayerRow
+
+**Badge classification (exclusive, priority order):**
+| Badge | Colour | Condition |
+|-------|--------|-----------|
+| 🔥 HOT | Orange | overall ≥ 78 |
+| 🛡 SAFE | Green | riskScore ≥ 68 AND overall ≥ 55 |
+| 💎 VALUE PICK | Cyan | overall ≥ 58 AND credits < 8.5 |
+| ⚠ RISKY | Red | overall < 44 |
+| ⚡ DIFF | Purple | overall ≥ 52 (catch-all for strong-but-not-hot players) |
+
+**Commit:** see latest
+
 ## AI Engine (Feature Session 2)
 
 ### ✅ Task 1 — AI Player Rating Engine
-
-**Files added/modified:**
-- `artifacts/hoopiq/src/lib/ai-player-rating.ts` — new reusable engine
-- `artifacts/hoopiq/src/pages/cricket-box-score.tsx` — AI Rating badges on player rows
-
-**Per-player 0–100 composite score, role-aware (Bat / Bowl / AR / WK):**
-
-| Factor | Weight (Bat) | Weight (Bowl) | Weight (AR) | Weight (WK) |
-|--------|-------------|--------------|------------|------------|
-| Recent Form | 28% | 28% | 25% | 26% |
-| Venue Record | 10% | 10% | 10% | 8% |
-| Opposition Strength | 10% | 12% | 10% | 8% |
-| Batting Position | 15% | 0% | 10% | 18% |
-| Bowling Opportunity | 0% | 18% | 10% | 0% |
-| Fantasy Consistency | 18% | 17% | 20% | 20% |
-| Expected Playing Time | 12% | 10% | 10% | 12% |
-| Risk Score | 7% | 5% | 5% | 8% |
-
-**Rating labels:** Elite (85+) · Excellent (72+) · Good (58+) · Average (44+) · Risky (30+) · Poor (<30)
-
-**Display:** Colour-coded `AI XX` badge on every batting and bowling scorecard row.
-
-**Architecture:** Each factor is an isolated function — swap for live provider without changing interfaces.
+**Files:** `ai-player-rating.ts`, `cricket-box-score.tsx`
+**Commits:** `2760a91`, `c46bd17`
 
 ### ✅ Task 2 — Captain & VC Engine
-
-**Files modified:**
-- `artifacts/hoopiq/src/lib/cricket-ai-intelligence.ts` — `CaptainVCEngine` + `CaptainVCPick` types
-- `artifacts/hoopiq/src/components/cricket-match-intelligence.tsx` — Captain/VC Engine card section
-
-**New `CaptainVCEngine` fields per pick:**
-| Field | Description |
-|-------|-------------|
-| `captainScore` | 0–100 composite captain suitability |
-| `riskPct` | 0–100 risk (high = volatile) |
-| `confidencePct` | 0–100 AI confidence |
-| `aiRating` | 0–100 from player rating model |
-| `label` | BEST_CAPTAIN / BEST_VC / SAFE_PICK / GRAND_LEAGUE |
-
-**Four recommendations:** ⭐ Best Captain · ⭐ Best VC · ⭐ Safe Pick · ⭐ Grand League Differential
+**Files:** `cricket-ai-intelligence.ts`, `cricket-match-intelligence.tsx`
+**Commit:** `9bb1273`
 
 ### ✅ Task 3 — Match Conditions
-
-**Files modified:**
-- `artifacts/hoopiq/src/lib/cricket-ai-intelligence.ts` — `MatchConditions`, `PitchReport`, `WeatherCondition` types
-- `artifacts/hoopiq/src/components/cricket-match-intelligence.tsx` — new sections rendered
-
-**New `MatchConditions` sections in card:**
-| Section | Status |
-|---------|--------|
-| Pitch Report (surface label + batting/bowling % bars) | ✅ Format-aware (PLACEHOLDER) |
-| Pace vs Spin Advantage | ✅ Format-aware badge |
-| Weather | ✅ Extended (PLACEHOLDER — needs API) |
-| Dew Factor | ✅ Format-aware DewImpact: NONE/LOW/MODERATE/HIGH |
-| Toss Bias | ✅ Replaced legacy toss with rich section |
-| Batting Friendly % | ✅ Derived from surface profile |
-| Bowling Friendly % | ✅ Derived from surface profile |
-
-### ✅ Task 4 — Smoke Test
-
-- TypeScript: ✅ Clean (0 errors) after all tasks
-- Build: ✅ Success (chunk-size warning only — pre-existing)
-- Cricket tab: ✅ Works
-- Basketball tab: ✅ Works
-- Optimizer: ✅ Works
-- AI card: ✅ Renders (expanded shows all new sections)
-- Player ratings: ✅ Badge visible on scorecard rows
-- Captain suggestions: ✅ All 4 picks shown with scores
-
-## Feature Session 1 AI Engine
-
-### ✅ Task 1 (Session 1) — AI Match Intelligence Card
-See archived notes in `docs/AI_HANDOFF.md`.
+**Files:** `cricket-ai-intelligence.ts`, `cricket-match-intelligence.tsx`
+**Commit:** `9bb1273`
 
 ## TypeScript / Build
 
-- TypeScript: ✅ Clean (0 errors) after Tasks 1–3
-- Build: ✅ Success after Tasks 1–3 (chunk-size warning only)
+- TypeScript: ✅ Clean (0 errors) after Session 3 Tasks 1 + 2
+- Build: ✅ Success (chunk-size warning only — pre-existing)
 
-## Commit Hashes (Feature Session 2)
+## Commit Hashes (Feature Session 3)
 
 | Task | Commit |
 |------|--------|
-| Task 1 — AI Player Rating Engine (engine file) | `2760a91` |
-| Task 2+3 — Captain/VC Engine + Match Conditions | `9bb1273` |
-| Task 1 — AI Rating badge on box score rows | `c46bd17` |
+| Task 1 — AI Insights Panel | `0ad74c2` |
+| Task 2 — Player AI Badges | `d916180` |
 
 ## Known Issues / Limitations
 
@@ -125,4 +107,5 @@ See archived notes in `docs/AI_HANDOFF.md`.
 - Football fantasy logic not implemented
 - Provider manager (`provider-manager.ts`) implemented but not yet wired
 - AI intelligence/ratings are mock/heuristic — no live pitch, weather, player history, or ML data
+- Weather section in AI Insights shows "Awaiting data" (placeholder until weather API wired)
 - See `docs/KNOWN_ISSUES.md` for full tracking
