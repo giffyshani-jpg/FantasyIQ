@@ -1,1 +1,0 @@
-- [ESPN API league slugs](espn-api-slugs.md) — which basketball leagues ESPN's public API actually serves (some return 400).
