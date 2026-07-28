@@ -12,35 +12,9 @@ import { MobileLayout } from "../components/layout";
 import { GameCard } from "../components/game-card";
 import { fetchLeagueOverview, fetchGamesByLeagueAndLocalDate, LEAGUE_CONFIGS } from "../api";
 import { Game, LeagueKey, LeagueOverview } from "../lib/types";
+import { localDateKey, relativeDate, fmtDisplayDate } from "../lib/date-utils";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatDateKey(date: Date): string {
-  // Use LOCAL date so the date navigator matches the user's calendar day,
-  // not UTC. Without this, IST users (UTC+5:30) see the wrong day's games.
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}${m}${d}`;
-}
-
-function relativeDate(isoString: string | null | undefined): string {
-  if (!isoString) return "";
-  try {
-    const d = new Date(isoString);
-    const now = new Date();
-    if (d.toDateString() === now.toDateString()) return "Today";
-    const tom = new Date(now.getTime() + 86_400_000);
-    if (d.toDateString() === tom.toDateString()) return "Tomorrow";
-    const yest = new Date(now.getTime() - 86_400_000);
-    if (d.toDateString() === yest.toDateString()) return "Yesterday";
-    return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-  } catch { return ""; }
-}
-
-function fmtDisplayDate(date: Date): string {
-  return date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-}
 
 function isGameSoon(game: Game): boolean {
   if (game.status === "in_progress" || game.status === "final") return true;
@@ -143,7 +117,7 @@ function LeagueSection({ leagueKey, emoji, overview, overviewLoading }: LeagueSe
   // When offset changes, fetch games for that day
   useEffect(() => {
     const date = new Date(Date.now() + offset * 86_400_000);
-    const dateKey = formatDateKey(date);
+    const dateKey = localDateKey(date);
     setGamesLoading(true);
     setGames(null);
 

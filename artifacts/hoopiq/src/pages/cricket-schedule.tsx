@@ -11,28 +11,7 @@ import { Link } from "wouter";
 import { MobileLayout } from "../components/layout";
 import { fetchCricketOverview } from "../api";
 import type { CricketGame, CricketLeagueOverview } from "../lib/cricket-types";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmtDate(date: Date): string {
-  // Use LOCAL date so tab selection matches the user's calendar day,
-  // not UTC. Without this, IST users see games under the wrong day tab.
-  return date.toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
-}
-
-function fmtTime(isoString: string | null | undefined): string {
-  if (!isoString) return "";
-  try {
-    return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(isoString));
-  } catch { return ""; }
-}
-
-function getLocalDateString(isoString: string | null | undefined): string {
-  if (!isoString) return "";
-  try {
-    return new Date(isoString).toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
-  } catch { return ""; }
-}
+import { localDateString, localDateStringFromIso, fmtTime } from "../lib/date-utils";
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
@@ -230,7 +209,7 @@ function DayTabs({ selectedDay, onChange, counts, hasLive }: DayTabsProps) {
 // ─── Games for a specific day ─────────────────────────────────────────────────
 
 function DayGames({ overview, dayOffset, loading }: { overview: CricketLeagueOverview | null; dayOffset: number; loading: boolean }) {
-  const targetDate = fmtDate(new Date(Date.now() + dayOffset * 86_400_000));
+  const targetDate = localDateString(new Date(Date.now() + dayOffset * 86_400_000));
 
   const allGames: CricketGame[] = [
     ...(overview?.live ?? []),
@@ -241,7 +220,7 @@ function DayGames({ overview, dayOffset, loading }: { overview: CricketLeagueOve
   // Filter to target day (using local date from startTimeIso)
   const dayGames = allGames.filter(g => {
     if (!g.startTimeIso) return dayOffset === 0; // no time? show on today only
-    return getLocalDateString(g.startTimeIso) === targetDate;
+    return localDateStringFromIso(g.startTimeIso) === targetDate;
   });
 
   // Sort: live first, then by time
@@ -318,12 +297,12 @@ export default function CricketSchedule() {
 
   // Compute per-day counts for tab badges
   const counts = [0, 1, 2].map(offset => {
-    const targetDate = fmtDate(new Date(Date.now() + offset * 86_400_000));
+    const targetDate = localDateString(new Date(Date.now() + offset * 86_400_000));
     const all = [
       ...(overview?.live ?? []),
       ...(overview?.upcoming ?? []),
     ];
-    return all.filter(g => g.startTimeIso && getLocalDateString(g.startTimeIso) === targetDate).length;
+    return all.filter(g => g.startTimeIso && localDateStringFromIso(g.startTimeIso) === targetDate).length;
   });
 
   const hasLive = [0, 1, 2].map(offset => {

@@ -10,22 +10,9 @@ import { MobileLayout } from "../components/layout";
 import { fetchLeagueOverview, fetchCricketOverview } from "../api";
 import { LeagueOverview } from "../lib/types";
 import type { CricketLeagueOverview } from "../lib/cricket-types";
+import { relativeDate } from "../lib/date-utils";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function relativeDate(isoString: string | null | undefined): string {
-  if (!isoString) return "";
-  try {
-    const d = new Date(isoString);
-    const now = new Date();
-    if (d.toDateString() === now.toDateString()) return "Today";
-    const tom = new Date(now.getTime() + 86_400_000);
-    if (d.toDateString() === tom.toDateString()) return "Tomorrow";
-    const yest = new Date(now.getTime() - 86_400_000);
-    if (d.toDateString() === yest.toDateString()) return "Yesterday";
-    return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-  } catch { return ""; }
-}
 
 function isGameSoon(startTimeIso: string | null | undefined): boolean {
   if (!startTimeIso) return false;
