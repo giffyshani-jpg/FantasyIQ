@@ -1,6 +1,6 @@
 # FantasyIQ — Current Status
 
-**Last updated:** 2026-07-28 (Feature Session 1 — Task 1 complete)
+**Last updated:** 2026-07-28 (Feature Session 2 — Tasks 1–3 complete, Task 4 smoke-tested)
 **HEAD:** see latest commit
 **Repo:** https://github.com/giffyshani-jpg/FantasyIQ
 
@@ -29,49 +29,100 @@ Note: `PORT` and `BASE_PATH` are **required** for both dev and build — vite.co
 - Box score, optimizer, play-by-play, player comparison, player detail
 - AI Fantasy Coach (12 named picks with data-backed explanations)
 
-## AI Engine (Feature Session 1)
+## AI Engine (Feature Session 2)
 
-### ✅ Task 1 — AI Match Intelligence Card
+### ✅ Task 1 — AI Player Rating Engine
 
 **Files added/modified:**
-- `artifacts/hoopiq/src/lib/cricket-ai-intelligence.ts` — AI engine + types
-- `artifacts/hoopiq/src/components/cricket-match-intelligence.tsx` — UI card
-- `artifacts/hoopiq/src/pages/cricket-box-score.tsx` — wired in after MatchHeader
+- `artifacts/hoopiq/src/lib/ai-player-rating.ts` — new reusable engine
+- `artifacts/hoopiq/src/pages/cricket-box-score.tsx` — AI Rating badges on player rows
 
-**9 intelligence signals per match:**
-| Signal | Status |
-|--------|--------|
-| Match Difficulty | ✅ Format-aware (0–100 score + EASY/MEDIUM/HARD) |
-| Pitch Profile | ✅ Format-aware batting/bowling bars (PLACEHOLDER badge) |
-| Weather | ✅ Present (PLACEHOLDER — needs weather API) |
-| Toss Importance | ✅ Format-aware score + preferred decision |
-| Batting/Bowling Friendly | ✅ Derived from surface profile |
-| Captain Picks | ✅ Ranked by fantasy pts (scorecard) or credits (pre-match) |
-| Vice Captain Picks | ✅ Same ranking, slots 3–4 |
-| Differential Picks | ✅ Prefers all-rounders/WKs outside C/VC pool |
-| Risk Level | ✅ LOW/MEDIUM/HIGH/EXTREME per format |
+**Per-player 0–100 composite score, role-aware (Bat / Bowl / AR / WK):**
 
-**Architecture:**
-- `computeMatchIntelligence(game)` → `MatchIntelligence` — single entry point
-- `isMock: true` flag on all outputs — consumers show MOCK badge
-- `isPlaceholder: true` on surface and weather — explicit until real data wired
-- Format profiles in `FORMAT_HEURISTICS` record — swap values to use live data
+| Factor | Weight (Bat) | Weight (Bowl) | Weight (AR) | Weight (WK) |
+|--------|-------------|--------------|------------|------------|
+| Recent Form | 28% | 28% | 25% | 26% |
+| Venue Record | 10% | 10% | 10% | 8% |
+| Opposition Strength | 10% | 12% | 10% | 8% |
+| Batting Position | 15% | 0% | 10% | 18% |
+| Bowling Opportunity | 0% | 18% | 10% | 0% |
+| Fantasy Consistency | 18% | 17% | 20% | 20% |
+| Expected Playing Time | 12% | 10% | 10% | 12% |
+| Risk Score | 7% | 5% | 5% | 8% |
 
-### 🔜 Task 2 — AI Player Rating (next)
-- 0–100 per-player rating
-- Weighted: recent form, venue record, opponent strength, batting position, bowling overs, fantasy consistency
-- Reusable interfaces for Batters / Bowlers / All-rounders / WKs
-- Display AI Rating on player cards
+**Rating labels:** Elite (85+) · Excellent (72+) · Good (58+) · Average (44+) · Risky (30+) · Poor (<30)
+
+**Display:** Colour-coded `AI XX` badge on every batting and bowling scorecard row.
+
+**Architecture:** Each factor is an isolated function — swap for live provider without changing interfaces.
+
+### ✅ Task 2 — Captain & VC Engine
+
+**Files modified:**
+- `artifacts/hoopiq/src/lib/cricket-ai-intelligence.ts` — `CaptainVCEngine` + `CaptainVCPick` types
+- `artifacts/hoopiq/src/components/cricket-match-intelligence.tsx` — Captain/VC Engine card section
+
+**New `CaptainVCEngine` fields per pick:**
+| Field | Description |
+|-------|-------------|
+| `captainScore` | 0–100 composite captain suitability |
+| `riskPct` | 0–100 risk (high = volatile) |
+| `confidencePct` | 0–100 AI confidence |
+| `aiRating` | 0–100 from player rating model |
+| `label` | BEST_CAPTAIN / BEST_VC / SAFE_PICK / GRAND_LEAGUE |
+
+**Four recommendations:** ⭐ Best Captain · ⭐ Best VC · ⭐ Safe Pick · ⭐ Grand League Differential
+
+### ✅ Task 3 — Match Conditions
+
+**Files modified:**
+- `artifacts/hoopiq/src/lib/cricket-ai-intelligence.ts` — `MatchConditions`, `PitchReport`, `WeatherCondition` types
+- `artifacts/hoopiq/src/components/cricket-match-intelligence.tsx` — new sections rendered
+
+**New `MatchConditions` sections in card:**
+| Section | Status |
+|---------|--------|
+| Pitch Report (surface label + batting/bowling % bars) | ✅ Format-aware (PLACEHOLDER) |
+| Pace vs Spin Advantage | ✅ Format-aware badge |
+| Weather | ✅ Extended (PLACEHOLDER — needs API) |
+| Dew Factor | ✅ Format-aware DewImpact: NONE/LOW/MODERATE/HIGH |
+| Toss Bias | ✅ Replaced legacy toss with rich section |
+| Batting Friendly % | ✅ Derived from surface profile |
+| Bowling Friendly % | ✅ Derived from surface profile |
+
+### ✅ Task 4 — Smoke Test
+
+- TypeScript: ✅ Clean (0 errors) after all tasks
+- Build: ✅ Success (chunk-size warning only — pre-existing)
+- Cricket tab: ✅ Works
+- Basketball tab: ✅ Works
+- Optimizer: ✅ Works
+- AI card: ✅ Renders (expanded shows all new sections)
+- Player ratings: ✅ Badge visible on scorecard rows
+- Captain suggestions: ✅ All 4 picks shown with scores
+
+## Feature Session 1 AI Engine
+
+### ✅ Task 1 (Session 1) — AI Match Intelligence Card
+See archived notes in `docs/AI_HANDOFF.md`.
 
 ## TypeScript / Build
 
-- TypeScript: ✅ Clean (0 errors) after Task 1
-- Build: ✅ Success after Task 1 (chunk-size warning only)
+- TypeScript: ✅ Clean (0 errors) after Tasks 1–3
+- Build: ✅ Success after Tasks 1–3 (chunk-size warning only)
+
+## Commit Hashes (Feature Session 2)
+
+| Task | Commit |
+|------|--------|
+| Task 1 — AI Player Rating Engine (engine file) | `2760a91` |
+| Task 2+3 — Captain/VC Engine + Match Conditions | `9bb1273` |
+| Task 1 — AI Rating badge on box score rows | `c46bd17` |
 
 ## Known Issues / Limitations
 
 - Cricket live scores: TSDB free tier only returns NS/FT — games show "Starting"
 - Football fantasy logic not implemented
 - Provider manager (`provider-manager.ts`) implemented but not yet wired
-- AI intelligence is mock/heuristic — no live pitch, weather, or ML data
+- AI intelligence/ratings are mock/heuristic — no live pitch, weather, player history, or ML data
 - See `docs/KNOWN_ISSUES.md` for full tracking
