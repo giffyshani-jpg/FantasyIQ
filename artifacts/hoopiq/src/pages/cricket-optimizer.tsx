@@ -19,7 +19,6 @@ import { fetchFantasyMetadata, lookupPlayerMeta } from "../lib/fantasy-providers
 import {
   calculateCricketFantasyPoints,
   getScoringProfile,
-  SCORING_PROFILES,
   type ScoringProfile,
 } from "../lib/cricket-scoring";
 import type { CricketPlayer, CricketGame, CricketRole } from "../lib/cricket-types";
@@ -334,30 +333,42 @@ function autoPick(
   return { selected, captain, viceCaptain };
 }
 
-// ─── Scoring profile selector ─────────────────────────────────────────────
+// ─── Auto-detected format card ────────────────────────────────────────────
+//
+// Task 2: format is auto-detected from competition name — never user-selected.
+// This read-only card replaces the old ProfileSelector.
 
-function ProfileSelector({
-  current,
-  onChange,
-}: {
-  current: ScoringProfile;
-  onChange: (p: ScoringProfile) => void;
-}) {
+const FORMAT_COLORS: Record<string, string> = {
+  T20:           "bg-orange-900/30 border-orange-700/40 text-orange-300",
+  ODI:           "bg-blue-900/30 border-blue-700/40 text-blue-300",
+  Test:          "bg-amber-900/30 border-amber-700/40 text-amber-300",
+  "The Hundred": "bg-purple-900/30 border-purple-700/40 text-purple-300",
+  T10:           "bg-pink-900/30 border-pink-700/40 text-pink-300",
+};
+
+function DetectedFormatCard({ profile, competition }: { profile: ScoringProfile; competition: string }) {
+  const colorCls = FORMAT_COLORS[profile.name] ?? "bg-muted/30 border-border/40 text-muted-foreground";
+
   return (
     <div className="rounded-2xl border border-border/40 p-4 bg-card">
-      <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Scoring Profile</p>
-      <div className="flex flex-wrap gap-2">
-        {Object.values(SCORING_PROFILES).map((profile) => (
-          <button
-            key={profile.name}
-            onClick={() => onChange(profile)}
-            className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${current.name === profile.name ? "bg-green-700 border-green-600 text-white" : "border-border/40 text-muted-foreground hover:border-green-700/50 hover:text-green-400"}`}
-          >
-            {profile.name}
-          </button>
-        ))}
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Scoring Format</p>
+        <span className={`text-[10px] font-black uppercase tracking-wider rounded-full px-2.5 py-0.5 border ${colorCls}`}>
+          {profile.name}
+        </span>
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] text-muted-foreground/60">
+
+      {/* Auto-detected label */}
+      <div className="flex items-center gap-1.5 mb-3">
+        <span className="text-[9px] text-green-400/70 font-semibold bg-green-900/20 border border-green-700/30 rounded px-1.5 py-0.5">
+          AUTO-DETECTED
+        </span>
+        <span className="text-[10px] text-muted-foreground/50 truncate">from {competition || "competition"}</span>
+      </div>
+
+      {/* Scoring key stats */}
+      <div className="grid grid-cols-2 gap-2 text-[10px] text-muted-foreground/60">
         <div className="flex justify-between">
           <span>Captain</span><span className="font-bold text-yellow-400">×{CAPTAIN_MULT}</span>
         </div>
@@ -365,25 +376,33 @@ function ProfileSelector({
           <span>Vice Captain</span><span className="font-bold text-blue-400">×{VICE_CAPTAIN_MULT}</span>
         </div>
         <div className="flex justify-between">
-          <span>Wicket</span><span className="font-bold">{current.bowling.perWicket}pts</span>
+          <span>Wicket</span><span className="font-bold">{profile.bowling.perWicket}pts</span>
         </div>
         <div className="flex justify-between">
-          <span>Run</span><span className="font-bold">{current.batting.perRun}pt</span>
+          <span>Run</span><span className="font-bold">{profile.batting.perRun}pt</span>
         </div>
         <div className="flex justify-between">
-          <span>Six</span><span className="font-bold">+{current.batting.perSix}pts</span>
+          <span>Six</span><span className="font-bold">+{profile.batting.perSix}pts</span>
         </div>
         <div className="flex justify-between">
-          <span>Catch</span><span className="font-bold">+{current.fielding.perCatch}pts</span>
+          <span>Catch</span><span className="font-bold">+{profile.fielding.perCatch}pts</span>
         </div>
-        {current.strikeRate.enabled && (
+        {profile.strikeRate.enabled && (
           <div className="flex justify-between col-span-2">
-            <span>Strike Rate bonus</span><span className="font-bold text-green-400">Enabled (min {current.strikeRate.minBalls} balls)</span>
+            <span>SR bonus</span>
+            <span className="font-bold text-green-400">✓ (min {profile.strikeRate.minBalls} balls)</span>
           </div>
         )}
-        {current.economy.enabled && (
+        {profile.economy.enabled && (
           <div className="flex justify-between col-span-2">
-            <span>Economy bonus</span><span className="font-bold text-green-400">Enabled (min {current.economy.minOvers} overs)</span>
+            <span>Economy bonus</span>
+            <span className="font-bold text-green-400">✓ (min {profile.economy.minOvers} overs)</span>
+          </div>
+        )}
+        {!profile.strikeRate.enabled && !profile.economy.enabled && (
+          <div className="flex justify-between col-span-2">
+            <span>SR/Economy bonuses</span>
+            <span className="font-bold text-muted-foreground/40">Not applicable</span>
           </div>
         )}
       </div>
@@ -404,6 +423,7 @@ export default function CricketOptimizer() {
   const [loading, setLoading] = useState(true);
   const [fantasyLoading, setFantasyLoading] = useState(false);
   const [fantasySource, setFantasySource] = useState<string | null>(null);
+  // profile is auto-detected from the competition — never user-selected (Task 2)
   const [profile, setProfile] = useState<ScoringProfile>(
     () => getScoringProfile("T20")
   );
@@ -610,8 +630,11 @@ export default function CricketOptimizer() {
           </div>
         ) : (
           <>
-            {/* Scoring Profile selector */}
-            <ProfileSelector current={profile} onChange={setProfile} />
+            {/* Auto-detected format (read-only — Task 2) */}
+            <DetectedFormatCard
+              profile={profile}
+              competition={game?.competitionName ?? ""}
+            />
 
             {/* Fantasy provider note */}
             {fantasyLoading && (
