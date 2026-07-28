@@ -1,120 +1,140 @@
-# HoopIQ — AI Handoff Document
+# FantasyIQ — AI Handoff Document
 
 Context for any agent picking up work on this codebase.
 
-> **Last session**: July 25, 2026 — Live data fixes: cricket TheSportsDB provider, NBA "no fake games", removed Other Basketball.
-> **TypeScript**: Clean — `pnpm typecheck` passes with 0 errors.
-> **App status**: Running · home page shows real cricket games today
+> **Last updated**: July 28, 2026  
+> **Git**: Local `main` = `origin/main` = `318fbc8` — fully synchronized  
+> **Build**: TypeScript clean · Vite running on port 21534 (`HoopIQ` workflow)
 
 ---
 
-## What changed this session
+## Current Git State
 
-| Change | File(s) |
-|--------|---------|
-| Cricket provider complete rewrite → TheSportsDB | `src/providers/cricket.js` |
-| Home page: remove Other Basketball, fix NBA display | `src/pages/home.tsx` |
+```
+318fbc8  fix(bug5-routes): remove broken /cricket/:competition catch-all route  ← HEAD = origin/main
+c1f889f  fix(bug2-basketball): fetch prev-day ESPN scoreboard and filter by local date
+cae2320  fix(bug1-cricket): extend StatusBadge 'Starting' window from 3h to 8h
+9cc461c  fix(preview): align dev server PORT with artifact.toml (21534)
+87446ee  fix(cricket-schedule): use local date for day tabs
+eca4e0d  fix(basketball): use local date in date navigator
+4c9377b  fix(cricket): extend upcoming window to 8h
+ef818ef  feat(Task 1): rebrand HoopIQ → FantasyIQ
+```
+
+Nothing uncommitted. Nothing unpushed. Clean.
 
 ---
 
-## Architecture overview (current)
+## Architecture Overview
 
 ```
 artifacts/hoopiq/
   src/
-    api.js                  — adapter boundary; basketball + cricket exports
+    api.js                    — adapter boundary; ALL provider calls go through here
+    App.tsx                   — routes; cricket routes MUST come before /:league catch-all
     providers/
-      espn.js               — ESPN basketball engine (NBA/WNBA/etc)
-      nba.js / wnba.js / …  — basketball providers
-      cricket.js            — TheSportsDB multi-league + day-based auto-discovery
+      cricket.js              — TheSportsDB multi-league + day-based auto-discovery
+      espn.js / nba.js / …    — basketball ESPN providers
+      football.js             — TheSportsDB Soccer (infrastructure only)
     lib/
-      types.ts              — basketball types + LeagueKey includes "cricket"
-      cricket-types.ts      — CricketGame, CricketPlayer, CricketInnings, …
-      cricket-scoring.ts    — scoring rule engine + T20/ODI/Test/Hundred/T10 profiles
-      fantasy-providers.ts  — FantasyWala, Calc11, DafaFantasy metadata (speculative)
-      provider-health.ts    — per-provider health tracking (success rate, latency)
-      stats.ts              — basketball calculateFantasyPoints (DraftKings)
+      types.ts                — LeagueKey union; "cricket" is a member
+      cricket-types.ts        — CricketGame, CricketPlayer, CricketInnings, etc.
+      cricket-scoring.ts      — scoring engine (T20/ODI/Test/Hundred/T10 profiles)
+      format-filter.ts        — filterStatsByFormat(), computeRollingStats(), format groups
+      provider-manager.ts     — createProviderManager() with reliability scoring
+      provider-health.ts      — per-provider health tracking
     pages/
-      home.tsx              — NBA + WNBA + Cricket only (Other Basketball removed)
-      cricket-box-score.tsx — batting + bowling scorecards (empty for TSDB games)
-      cricket-optimizer.tsx — 11-player optimizer
-      fantasy-optimizer.tsx — basketball optimizer
-    App.tsx                 — cricket routes before generic /:league routes
+      home.tsx                — FantasyIQ home hub (3 sport cards)
+      basketball.tsx          — /basketball — NBA + WNBA with local-date navigator
+      cricket-schedule.tsx    — /cricket — Today/Tomorrow/Day-After tabs
+      cricket-box-score.tsx   — /cricket/:competition/game/:id
+      cricket-optimizer.tsx   — /cricket/:competition/game/:id/optimizer
+      football.tsx            — /football — coming soon banner
 ```
 
 ---
 
-## Cricket Data — What Works and Why
+## Key Invariants — NEVER BREAK THESE
+
+1. **`safeCall()` wraps every provider call** in `api.js`. Never remove.
+2. **UI never imports from providers directly** — only from `src/api.js`.
+3. **Cricket routes in `App.tsx` before `/:league`** — `/cricket/:competition/game/:id` must be listed before `/:league/game/:id` or the wrong page renders.
+4. **`mapTsdbStatus()` never infers `in_progress` from time** — only from TSDB's explicit `strStatus` field.
+5. **`isGameSoon(game)`** in `home.tsx` — 48h window filter for NBA/WNBA cards. Do not remove; ESPN returns Oct pre-season games year-round.
+6. **`fetchGamesByLeagueAndLocalDate()`** in `api.js` — fetches both local date AND prev ESPN date, merges by ID. Fixes IST/AEST users missing games. Do not revert to single-date fetch.
+7. **StatusBadge "Starting" window = 8h** in `cricket-schedule.tsx`. Matches provider's upcoming cutoff. Do not reduce.
+8. **Local date (not UTC) for all day tabs** — `fmtDate()` and `getLocalDateString()` use `toLocaleDateString`. Verified correct.
+
+---
+
+## Cricket Data — What Works
 
 ### Primary Source: TheSportsDB (free, CORS-open)
 
-Two strategies used together:
+Two strategies queried in parallel:
 
-**1. Day-based** (`eventsday.php?d={YYYY-MM-DD}&s=Cricket`):
-- Returns ALL cricket events for any calendar date, regardless of competition
-- No league IDs needed — automatically includes new competitions TSDB adds
-- Queried for: yesterday, today, +1, +2, +3 days
+**Day-based** (`eventsday.php?d={YYYY-MM-DD}&s=Cricket`):
+- Returns ALL cricket on any calendar date; no league IDs needed
+- Queried for: yesterday, today, +1, +2, +3 days (UTC calendar)
 
-**2. League-based** (`eventsnextleague.php?id=X`, `eventspastleague.php?id=X`):
-- 17 known cricket league IDs (IPL, BBL, T20 Blast, CPL, PSL, SA20, LPL, etc.)
-- Catches leagues that eventsday misses (e.g. Lanka Premier League)
-- Provides broader upcoming events window
+**League-based** (`eventsnextleague.php?id=X` / `eventspastleague.php?id=X`):
+- 17 known competition IDs — see `KNOWN_LEAGUES` in `cricket.js`
 
-**Active competitions as of July 25, 2026:**
-- The Hundred (men's + women's) — confirmed 6 games in the next 3 days
-- Lanka Premier League — game today
-- Global Super League — game yesterday
-- County Championship — upcoming August
+**Limitation**: TSDB free tier has no live cricket scores. Status is always NS/FT.  
+**Fix path**: Integrate CricAPI or Cricbuzz (both require an API key).
 
-### Why ESPNcricinfo CANNOT be used
-
-1. **`site.api.espn.com/apis/site/v2/sports/cricket/{slug}`** — returns `{"code":404}`. ESPN's basketball API and cricket API are on different infrastructure. Cricket is at ESPNcricinfo (separate domain), not the main ESPN API.
-
-2. **`hs-consumer-api.espncricinfo.com`** — requires `x-hsci-auth-token` header. CORS: `access-control-allow-origin: https://www.espncricinfo.com` only. Returns **403 Forbidden** (Akamai WAF block) from both server-side and cross-origin browser requests.
-
-### What can be added for live scores in the future
-
-- **Cricbuzz** — requires RapidAPI key (has free tier)
-- **CricAPI** — requires API key registration (has 100 calls/day free tier)
-- **api-server proxy** with proper credentials once a paid key is obtained
-- Once a key exists, add as a second provider in `cricket.js` and the health monitor will auto-prefer whichever has live data
+### Why ESPNcricinfo cannot be used
+- `hs-consumer-api.espncricinfo.com` requires `x-hsci-auth-token` (Akamai WAF → 403)
+- CORS: `access-control-allow-origin: https://www.espncricinfo.com` only — blocks all cross-origin requests
+- `site.api.espn.com/sports/cricket/*` returns `{"code": 404}` — basketball ESPN API ≠ cricket
 
 ---
 
-## NBA/WNBA Fix — How It Works
+## Tasks That Need Re-Implementation
 
-**Root cause**: ESPN's `/scoreboard` endpoint (no date param) returns the next upcoming games even when they're months away. The NBA regular season starts October 2026. ESPN returns those pre-season games as "upcoming" on the current scoreboard.
+These 6 tasks were built in a previous session, committed locally, but **never pushed** and were lost when the local branch was reset to match `origin/main`. The `/tmp` backup was also cleared. They need to be re-done:
 
-**Fix in `home.tsx`**: `isGameSoon(game)` — only renders game cards for games within 48 hours. Far-future games show "Season starts [date]" text instead.
+| Task | Feature | Files |
+|------|---------|-------|
+| 1 | Dual-provider fallback manager in `api.js` | new `src/providers/cricket-backup.js` + edit `api.js` |
+| 2 | Match Intelligence panel on box score (toss/weather/pitch/H2H/PlayingXI) | edit `cricket-types.ts` + `cricket-box-score.tsx` |
+| 3 | Format-aware stat badges in optimizer (`FormatGroupBadge`) | edit `cricket-optimizer.tsx` |
+| 4 | Per-player fantasy intel panel in optimizer (`PlayerIntelPanel`) | edit `cricket-optimizer.tsx` |
+| 5 | Recommendation engine (Captain/VC/Safe/Differential/GL) | new `src/lib/cricket-recommendations.ts` + edit `cricket-optimizer.tsx` |
+| 6 | Schedule timezone audit comments | edit `cricket-schedule.tsx` |
 
-**Key principle**: `scan: false` in `fetchLeagueOverview` prevents the 180-day forward scan. But even with `scan: false`, ESPN's default scoreboard returns future games. The `isGameSoon()` filter is the correct defense.
+**Start with Task 1 (provider fallback). Typecheck + push after EACH task.**
 
 ---
 
-## Home Page Layout (Updated)
+## Workflow Notes
 
+The correct workflow is **`HoopIQ`** (runs `pnpm --filter @workspace/hoopiq run dev` on port 21534).
+
+`artifacts/hoopiq: web` is a duplicate workflow that fails because port 21534 is already taken.
+
+`hoopiq-repo/*` workflows all fail — `node_modules` are missing in that directory. These are spurious duplicate artifact registrations from a platform event and can be ignored.
+
+---
+
+## Git Authentication
+
+PAT is available. To push:
+```bash
+git remote set-url origin https://<PAT>@github.com/giffyshani-jpg/Static-Site-Builder.git
+git push origin main
+git remote set-url origin https://github.com/giffyshani-jpg/Static-Site-Builder.git
 ```
-① Header — "Today's Games" + date
-② LIVE NOW banner — live basketball games (if any)
-③ 🏀 NBA card — real games only; "Season starts Oct 5" when off-season
-④ 🏀 WNBA card — real games only; same logic
-⑤ 🏏 Cricket section — TheSportsDB day-based + league-based auto-discovery
-⑥ Footer — data attribution
-```
-
-"Other Basketball" (NBL, NZ NBL, FIBA, Summer) has been **permanently removed** from the home page.
+Or use the `gitPush({})` CodeExecution callback if GitHub is connected in the Replit pane.
 
 ---
 
-## Key Invariants
+## Dev Commands
 
-- **Never import from a provider directly** — always go through `src/api.js`.
-- **Cricket game IDs** from TSDB are `tsdb:{idEvent}`. Parse with `gameId.startsWith("tsdb:")`.
-- **Cricket scoring** uses `calculateCricketFantasyPoints(stats, profile)`.
-- **Basketball scoring** uses `calculateFantasyPoints(stats)` from `src/lib/stats.ts`.
-- **isGameSoon(game)** filters NBA/WNBA game cards — 48h window, don't remove.
-- **Mobile-first** — every new UI component must work at 390px before 1200px.
-- **TypeScript** — run `pnpm --filter @workspace/hoopiq typecheck` after edits.
+```bash
+pnpm --filter @workspace/hoopiq run typecheck   # must be clean before every commit
+pnpm --filter @workspace/hoopiq run dev         # starts Vite on $PORT (21534)
+```
 
 ---
 
@@ -140,37 +160,5 @@ const KNOWN_LEAGUES = [
   { id: 5535, name: "Zimbabwe T20",              format: "T20"  },
   { id: 5606, name: "Ireland T20 Trophy",        format: "T20"  },
 ];
-// The Hundred (men's + women's) NOT in this list — covered by eventsday.php
+// The Hundred covered by eventsday.php (not in KNOWN_LEAGUES — no ID found yet)
 ```
-
----
-
-## Git
-
-Remote: `origin` → `https://github.com/giffyshani-jpg/Static-Site-Builder`
-
-Push failure root cause: No GitHub OAuth/PAT credential helper configured in this Replit environment. `git push` TCP connection to GitHub hangs (no auth = infinite timeout).
-
-**Fix**: Configure a PAT:
-```bash
-git remote set-url origin https://<PAT>@github.com/giffyshani-jpg/Static-Site-Builder.git
-git push origin main
-```
-
----
-
-## Next Steps
-
-### Cricket improvements (near-term)
-1. **Live scores**: Integrate CricAPI or Cricbuzz once an API key is available. Add as second provider in `cricket.js` — health monitor auto-prefers the one with live data.
-2. **Cricket box score from TSDB**: TSDB has a `lookupevent.php` endpoint that returns some match data. Enhance `fetchGameById()` to extract more detail.
-3. **The Hundred + more leagues**: The Hundred appears in `eventsday.php` but isn't in `KNOWN_LEAGUES`. Find its TSDB ID and add it.
-4. **Innings data**: Explore TSDB's paid tier or another free source for ball-by-ball data.
-
-### Basketball improvements
-1. **NBA Summer League**: Currently removed from home page. If it should be restored, add a separate "Summer League" section that only shows during July, filtered by season type.
-2. **Injury report freshness**: Show last-updated timestamp for ESPN injury data.
-
-### Platform
-1. **Git push**: Configure PAT or use Replit's Git pane.
-2. **Deploy**: Suggest `SuggestUserAction({ action: "deploy" })` once user is happy.
