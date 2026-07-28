@@ -1,35 +1,51 @@
 # FantasyIQ — Current Status
 
 **Last updated:** 2026-07-28
-**HEAD:** commit pending push (doc consolidation session)
+**HEAD:** cda7e85 (verified clean — doc consolidation session)
 **Repo:** https://github.com/giffyshani-jpg/FantasyIQ
 
 ## Running
 
 | Workflow | Status | Port |
 |---|---|---|
-| HoopIQ | ✅ Running | 21534 |
+| HoopIQ | ✅ Running | 3000 (dev) |
 
-**Correct workflow:** `HoopIQ` (`PORT=21534 BASE_PATH=/ pnpm --filter @workspace/hoopiq run dev`).
-Do **not** start `artifacts/hoopiq: web` — it conflicts on port 21534.
+**Correct command:** `PORT=3000 BASE_PATH=/ pnpm --filter @workspace/hoopiq run dev`
+
+**Build command:** `PORT=3000 BASE_PATH=/ pnpm --filter @workspace/hoopiq run build`
+
+Note: `PORT` and `BASE_PATH` are **required** for both dev and build — vite.config.ts enforces this.
 
 ## What Works
 
 - Home page — 3-sport hub (Cricket / Basketball / Football)
-- Basketball page — NBA + WNBA with **Recent / Today / Tomorrow** tabs
-  - Recent tab: backward search (`findRecentDate`) finds latest day with completed games
-- Cricket schedule — **Recent / Today / Tomorrow** tabs
-  - Recent tab: backward search on `recentCompleted` for latest completed-match date
-- Cricket box score → back button navigates to `/cricket` (fixed 404)
-- Cricket optimizer → back-nav label is "Match Details"
+- Basketball page — NBA + WNBA with **Recent / Today / Tomorrow** tabs (no Day After)
+  - Recent tab: `findRecentDate()` walks backwards up to 30 days, stops at first day with `status === "final"` game
+- Cricket schedule — **Recent / Today / Tomorrow** tabs (no Day After)
+  - Recent tab: scans `overview.recentCompleted`, finds single most-recent date, shows ALL games from that date
+- Cricket box score → back button navigates to `/cricket` ✅ (no 404)
+- Cricket optimizer → back-nav label "Match Details" → returns to cricket box score ✅
 - Football page — infrastructure only, no fantasy logic
 - All individual league pages (NBA, WNBA, NBL, NZNBL, FIBA, NBA Summer)
 - Box score, optimizer, play-by-play, player comparison, player detail
 - AI Fantasy Coach (12 named picks with data-backed explanations)
 
-## TypeScript
+## Verification Session (2026-07-28)
 
-Clean — `tsc --noEmit` exits 0 (verified July 28, 2026).
+Full smoke-test session confirmed no regressions:
+
+| Check | Result |
+|-------|--------|
+| TypeScript (`tsc --noEmit`) | ✅ Clean — 0 errors |
+| Build (`PORT=3000 BASE_PATH=/ vite build`) | ✅ Success (chunk-size warning only, not an error) |
+| Basketball tabs | ✅ Recent / Today / Tomorrow — no Day After |
+| Cricket tabs | ✅ Recent / Today / Tomorrow — no Day After |
+| Cricket Recent logic | ✅ `recentCompleted` backward scan confirmed |
+| Basketball Recent logic | ✅ `findRecentDate()` 30-day walk confirmed |
+| Cricket box score back-nav | ✅ `<Link href="/cricket">` at line 344 |
+| Cricket optimizer back-nav | ✅ Returns to cricket box score |
+| App serving | ✅ All routes return HTTP 200 |
+| HEAD matches origin/main | ✅ cda7e85 |
 
 ## Documentation
 
@@ -44,8 +60,6 @@ Clean — `tsc --noEmit` exits 0 (verified July 28, 2026).
 | `docs/PROJECT_CONTEXT.md` | Architecture, stack, caching, coding standards |
 | `docs/ROADMAP.md` | Completed, near-term, and medium-term planned work |
 | `docs/TECHNICAL_NOTES.md` | ESPN slugs, gamelog API, pregame arch, provider chain, cricket scoring |
-
-Previously duplicate locations (`artifacts/hoopiq/docs/`, `hoopiq-repo/`) have been deleted.
 
 ## Known Issues / Limitations
 

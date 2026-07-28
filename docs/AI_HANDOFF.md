@@ -2,14 +2,20 @@
 
 ## Latest Session Summary
 
-Documentation consolidation session (commit `TBD`).
-- Merged all docs from `artifacts/hoopiq/docs/` and `hoopiq-repo/docs/` into root `docs/`
-- Deleted `artifacts/hoopiq/docs/` (duplicate)
-- Deleted `hoopiq-repo/` (accidental duplicate of entire repo)
-- Created `docs/TECHNICAL_NOTES.md` from `.agents/memory/` technical knowledge
-- `docs/` is now the ONLY documentation location
+Verification / smoke-test session (2026-07-28). No code changes — all prior fixes confirmed in place.
 
-Previous: Bug-fix session (commit `9e8f22d`) — removed Day After tab, fixed Recent logic, fixed cricket header, fixed 404 nav.
+- TypeScript: clean (0 errors)
+- Build: successful (`PORT=3000 BASE_PATH=/ vite build`) — chunk-size warning only
+- Basketball: Recent / Today / Tomorrow confirmed — no Day After anywhere
+- Cricket: Recent / Today / Tomorrow confirmed — no Day After anywhere
+- Cricket Recent logic: `recentCompleted` backward scan confirmed correct
+- Basketball Recent logic: `findRecentDate()` 30-day backward walk confirmed correct
+- Cricket box score back-nav: `<Link href="/cricket">` (line 344 of cricket-box-score.tsx) — no 404
+- Cricket optimizer back-nav: returns to cricket box score correctly
+- All routes return HTTP 200 from the running dev server
+
+Previous: Documentation consolidation session (commit `cda7e85`).
+Before that: Bug-fix session (commit `9e8f22d`) — removed Day After tab, fixed Recent logic, fixed cricket header, fixed 404 nav.
 Before that: Basketball Recent tab (commit `1b04523`).
 Before that: 13 tasks — full rebrand, home screen, basketball hub, cricket schedule, provider system, timezone fix, cricket enhancements, format-aware stats, football infrastructure, UI polish, documentation.
 
@@ -82,17 +88,19 @@ artifacts/hoopiq/
 7. **StatusBadge "Starting" window = 8h** in `cricket-schedule.tsx`. Do not reduce.
 8. **All date/time helpers live in `src/lib/date-utils.ts`** — do NOT add new local date helpers in page files.
 9. **Basketball DayTabs use `localDayOffset(selected)`** — tab index maps directly to day offset (0=today, 1=tomorrow for non-Recent tabs).
+10. **`PORT` and `BASE_PATH` are required** for both `vite dev` and `vite build` — vite.config.ts throws if missing.
 
 ### Dev Commands
 ```bash
-pnpm --filter @workspace/hoopiq run typecheck   # must pass before every commit
-pnpm --filter @workspace/hoopiq run dev         # starts Vite on $PORT (21534)
+pnpm --filter @workspace/hoopiq run typecheck         # must pass before every commit
+PORT=3000 BASE_PATH=/ pnpm --filter @workspace/hoopiq run dev    # starts Vite on port 3000
+PORT=3000 BASE_PATH=/ pnpm --filter @workspace/hoopiq run build  # production build
 ```
 
 ### Workflow Notes
-- **Use only `HoopIQ`** workflow: `PORT=21534 BASE_PATH=/ pnpm --filter @workspace/hoopiq run dev`
-- Do NOT start `artifacts/hoopiq: web` — conflicts on port 21534
+- Use command: `PORT=3000 BASE_PATH=/ pnpm --filter @workspace/hoopiq run dev`
 - Push: requires GITHUB_TOKEN secret — `git push origin main` from repo root
+- When running in a Replit environment, configure a workflow named `HoopIQ` with the above command
 
 ## Cricket Tab System
 
