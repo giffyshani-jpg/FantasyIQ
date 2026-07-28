@@ -3,7 +3,7 @@
 // Computes intelligence signals for any CricketGame:
 //   matchDifficulty · surface · weather · toss · battingFriendly
 //   captainPicks · viceCaptainPicks · differentialPicks · riskLevel
-//   captainEngine  (Task 2) — Best Captain / VC / Safe Pick / Grand League Diff
+//   captainEngine  (Task 2) — Best Captain / VC / Safe Pick / Grand League Diff / Risk Pick
 //   matchConditions (Task 3) — Pitch Report · Weather · Dew Factor · Toss Bias
 //                              Pace vs Spin · Batting % · Bowling %
 //
@@ -39,12 +39,13 @@ export type PaceSpinBias =
 
 export type DewImpact = "NONE" | "LOW" | "MODERATE" | "HIGH";
 
-/** One of the four typed captain/VC recommendation labels. */
+/** One of the five typed captain/VC recommendation labels. */
 export type CaptainLabel =
   | "BEST_CAPTAIN"
   | "BEST_VC"
   | "SAFE_PICK"
-  | "GRAND_LEAGUE";
+  | "GRAND_LEAGUE"
+  | "RISK_PICK";
 
 // ── Legacy pick type (kept for backward compatibility) ────────────────────────
 
@@ -83,10 +84,14 @@ export interface CaptainVCEngine {
   bestCaptain: CaptainVCPick;
   /** ⭐ Best Vice Captain — strong alternative. */
   bestVC: CaptainVCPick;
-  /** ⭐ Safe Pick — consistent, low-risk floor option. */
+  /** 🛡 Safe Pick — consistent, low-risk floor option. */
   safePick: CaptainVCPick;
-  /** ⭐ Grand League Differential — low-ownership upside. */
+  /** 🔥 Grand League Differential — low-ownership upside. */
   grandLeagueDiff: CaptainVCPick;
+  /** ⚠ Risk Pick — high-ceiling volatile pick, boom-or-bust. */
+  riskPick: CaptainVCPick;
+  /** 0–100 overall team-confidence % derived from pick quality + format risk. */
+  teamConfidencePct: number;
   /** Always true until real provider is wired. */
   isMock: true;
 }
@@ -416,10 +421,13 @@ function buildCaptainEngine(
   hasScorecardData: boolean,
   riskLevel: RiskLevel,
 ): CaptainVCEngine {
+  const dummyPlayer: CricketPlayer = {
+    id: "", name: "TBD", role: "bat", credits: null, isPlaying: false, teamAbbreviation: "", stats: {},
+  };
+
   if (ranked.length === 0) {
-    // Empty-squad fallback — should never happen in practice
     const dummy: CaptainVCPick = {
-      player: { id: "", name: "TBD", role: "bat", credits: null, isPlaying: false, teamAbbreviation: "", stats: {} },
+      player: dummyPlayer,
       teamAbbreviation: "",
       label: "BEST_CAPTAIN",
       captainScore: 50,
@@ -428,7 +436,15 @@ function buildCaptainEngine(
       rationale: "No player data available",
       aiRating: 50,
     };
-    return { bestCaptain: dummy, bestVC: { ...dummy, label: "BEST_VC" }, safePick: { ...dummy, label: "SAFE_PICK" }, grandLeagueDiff: { ...dummy, label: "GRAND_LEAGUE" }, isMock: true };
+    return {
+      bestCaptain: dummy,
+      bestVC: { ...dummy, label: "BEST_VC" },
+      safePick: { ...dummy, label: "SAFE_PICK" },
+      grandLeagueDiff: { ...dummy, label: "GRAND_LEAGUE" },
+      riskPick: { ...dummy, label: "RISK_PICK" },
+      teamConfidencePct: 50,
+      isMock: true,
+    };
   }
 
   // Risk base percentage from format
@@ -484,8 +500,8 @@ function buildCaptainEngine(
   };
 
   // Grand League Differential — low-ownership upside (prefer outside top-4, prefer AR/WK)
-  const capVcIds = new Set([cap.player.id, vcEntry.player.id, safeEntry.player.id]);
-  const diffPool = ranked.filter((e) => !capVcIds.has(e.player.id));
+  const capVcSafeIds = new Set([cap.player.id, vcEntry.player.id, safeEntry.player.id]);
+  const diffPool = ranked.filter((e) => !capVcSafeIds.has(e.player.id));
   const premDiffs = diffPool.filter((e) => e.player.role === "all" || e.player.role === "wk");
   const diffEntry = (premDiffs.length > 0 ? premDiffs : diffPool)[0] ?? ranked[Math.min(4, ranked.length - 1)];
   const diffAI = buildAIRating(diffEntry.fantasyPts);
@@ -500,7 +516,35 @@ function buildCaptainEngine(
     aiRating: diffAI,
   };
 
-  return { bestCaptain, bestVC, safePick, grandLeagueDiff, isMock: true };
+  // Risk Pick — high-variance boom-or-bust selection
+  // Find a player with real upside (aiRating >= 40) outside the 4 main picks,
+  // preferring batters in explosive positions or bowlers with wicket-taking form.
+  const usedIds = new Set([cap.player.id, vcEntry.player.id, safeEntry.player.id, diffEntry.player.id]);
+  const riskPool = ranked.filter((e) => !usedIds.has(e.player.id));
+  // Prefer batters (higher variance) then bowlers, then all-rounders
+  const riskBatters = riskPool.filter((e) => e.player.role === "bat");
+  const riskBowlers = riskPool.filter((e) => e.player.role === "bowl");
+  const riskEntry =
+    (riskBatters.length > 0 ? riskBatters : riskBowlers.length > 0 ? riskBowlers : riskPool)[0] ??
+    ranked[Math.min(5, ranked.length - 1)];
+  const riskAI = buildAIRating(riskEntry.fantasyPts);
+  const riskPick: CaptainVCPick = {
+    player: riskEntry.player,
+    teamAbbreviation: riskEntry.teamAbbreviation,
+    label: "RISK_PICK",
+    captainScore: Math.min(100, Math.round(riskAI * 0.78)),
+    riskPct: Math.min(100, baseRisk + 28),
+    confidencePct: hasScorecardData ? 45 : 34,
+    rationale: "High-variance pick — can be a match-winner or score zero. Best for small-league gambles.",
+    aiRating: riskAI,
+  };
+
+  // Team Confidence % — derived from top-2 pick confidence + format risk adjustment
+  const riskAdj: Record<RiskLevel, number> = { LOW: 8, MEDIUM: 0, HIGH: -8, EXTREME: -18 };
+  const rawConf = (bestCaptain.confidencePct + bestVC.confidencePct) / 2;
+  const teamConfidencePct = Math.min(95, Math.max(25, Math.round(rawConf + riskAdj[riskLevel])));
+
+  return { bestCaptain, bestVC, safePick, grandLeagueDiff, riskPick, teamConfidencePct, isMock: true };
 }
 
 // ── Task 3: Match Conditions builder ─────────────────────────────────────────
@@ -512,21 +556,6 @@ function buildMatchConditions(h: FormatHeuristic): MatchConditions {
     h.surfaceType === "SPIN_FRIENDLY"? "Spin Friendly"    :
     h.surfaceType === "SEAM_FRIENDLY"? "Seam Friendly"    :
     "Balanced";
-
-  const dewLabel: Record<DewImpact, string> = {
-    NONE:     "No dew expected",
-    LOW:      "Minimal dew",
-    MODERATE: "Moderate dew likely",
-    HIGH:     "Heavy dew expected",
-  };
-
-  const paceSpinLabel: Record<PaceSpinBias, string> = {
-    PACE_DOMINANT: "Pace Dominant",
-    SLIGHT_PACE:   "Slight Pace Edge",
-    BALANCED:      "Balanced",
-    SLIGHT_SPIN:   "Slight Spin Edge",
-    SPIN_DOMINANT: "Spin Dominant",
-  };
 
   const tossLabel =
     h.tossImportance >= 75 ? "Very High" :

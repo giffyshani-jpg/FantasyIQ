@@ -1,10 +1,11 @@
 // AI Match Intelligence card for cricket matches.
 //
 // Renders intelligence sections for a CricketGame:
+//   AI Insights Panel (new) — polished summary of all 10 key signals
 //   Match Difficulty · Risk Level
 //   Match Conditions (Task 3): Pitch Report · Weather · Dew Factor · Toss Bias
 //                              Pace vs Spin · Batting % · Bowling %
-//   Captain/VC Engine (Task 2): Best Captain · Best VC · Safe Pick · Grand League Diff
+//   Captain/VC Engine (Task 2): Best Captain · Best VC · Safe Pick · GL Diff · Risk Pick
 //   Legacy: Differential Picks
 //
 // Collapsed by default — tap header to expand.
@@ -110,6 +111,13 @@ const Icons = {
       <path d="m6 9 6 6 6-6"/>
     </svg>
   ),
+  Sparkles: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width={12} height={12} viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+      <path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/>
+    </svg>
+  ),
 };
 
 // ── Shared primitives ─────────────────────────────────────────────────────────
@@ -210,9 +218,198 @@ function DewBadge({ factor }: { factor: DewImpact }) {
 const CAPTAIN_LABEL_CONFIG: Record<CaptainLabel, { icon: string; short: string; cls: string }> = {
   BEST_CAPTAIN:  { icon: "⭐", short: "C",    cls: "bg-yellow-500/20 text-yellow-300 border-yellow-500/40" },
   BEST_VC:       { icon: "⭐", short: "VC",   cls: "bg-blue-500/20 text-blue-300 border-blue-500/40" },
-  SAFE_PICK:     { icon: "⭐", short: "SAFE", cls: "bg-green-500/20 text-green-300 border-green-500/40" },
-  GRAND_LEAGUE:  { icon: "⭐", short: "GL",   cls: "bg-purple-500/20 text-purple-300 border-purple-500/40" },
+  SAFE_PICK:     { icon: "🛡", short: "SAFE", cls: "bg-green-500/20 text-green-300 border-green-500/40" },
+  GRAND_LEAGUE:  { icon: "🔥", short: "GL",   cls: "bg-purple-500/20 text-purple-300 border-purple-500/40" },
+  RISK_PICK:     { icon: "⚠", short: "RISK", cls: "bg-red-500/20 text-red-300 border-red-500/40" },
 };
+
+// ── AI Insights Panel ─────────────────────────────────────────────────────────
+
+/** Compact captain insight card used inside the 2-column top row */
+function CaptainInsightCard({ pick }: { pick: CaptainVCPick }) {
+  const cfg = CAPTAIN_LABEL_CONFIG[pick.label];
+  const aiColor =
+    pick.aiRating >= 80 ? "text-yellow-300" :
+    pick.aiRating >= 65 ? "text-green-300" :
+    pick.aiRating >= 50 ? "text-blue-300" :
+    "text-muted-foreground/50";
+
+  return (
+    <div className="rounded-xl border border-border/20 bg-muted/10 p-2.5 flex flex-col gap-1 min-w-0">
+      <div className="flex items-center gap-1 mb-0.5">
+        <span className={`text-[9px] font-black rounded px-1.5 py-0.5 border ${cfg.cls}`}>
+          {cfg.icon} {cfg.short}
+        </span>
+      </div>
+      <p className="text-[11px] font-bold text-foreground truncate leading-tight">
+        {pick.player.name || "TBD"}
+      </p>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <RolePill role={pick.player.role} />
+        <span className={`text-[10px] font-black ${aiColor}`}>AI {pick.aiRating}</span>
+      </div>
+      <div className="flex items-center gap-1 mt-0.5">
+        <span className="text-[9px] text-muted-foreground/35">Score</span>
+        <span className="text-[10px] font-bold text-primary/70">{pick.captainScore}</span>
+        <span className="text-[9px] text-muted-foreground/25">·</span>
+        <span className="text-[9px] text-muted-foreground/35">Conf</span>
+        <span className="text-[10px] font-bold text-muted-foreground/55">{pick.confidencePct}%</span>
+      </div>
+    </div>
+  );
+}
+
+/** Small pick chip for Differential / Safe / Risk picks */
+function PickChip({ pick, variant }: { pick: CaptainVCPick; variant: "differential" | "safe" | "risk" }) {
+  const cfg = {
+    differential: {
+      icon: "🔥",
+      label: "DIFF",
+      cls: "border-purple-600/30 bg-purple-900/15",
+      nameColor: "text-purple-200",
+      labelCls: "text-purple-400/70",
+    },
+    safe: {
+      icon: "🛡",
+      label: "SAFE",
+      cls: "border-green-600/30 bg-green-900/15",
+      nameColor: "text-green-200",
+      labelCls: "text-green-400/70",
+    },
+    risk: {
+      icon: "⚠",
+      label: "RISK",
+      cls: "border-red-600/30 bg-red-900/15",
+      nameColor: "text-red-200",
+      labelCls: "text-red-400/70",
+    },
+  }[variant];
+
+  return (
+    <div className={`rounded-xl border ${cfg.cls} px-2.5 py-2 flex flex-col gap-0.5 min-w-0`}>
+      <div className="flex items-center gap-1">
+        <span className="text-[10px]">{cfg.icon}</span>
+        <span className={`text-[8px] font-black uppercase tracking-wider ${cfg.labelCls}`}>{cfg.label}</span>
+      </div>
+      <p className={`text-[10px] font-bold truncate leading-tight ${cfg.nameColor}`}>
+        {pick.player.name
+          ? pick.player.name.split(" ").slice(-1)[0]
+          : "TBD"}
+      </p>
+      <span className="text-[8px] text-muted-foreground/35">AI {pick.aiRating}</span>
+    </div>
+  );
+}
+
+/** Single metric row with optional progress bar */
+function MetricRow({
+  icon,
+  label,
+  value,
+  bar,
+  barColor,
+}: {
+  icon: string;
+  label: string;
+  value: string;
+  bar?: number;
+  barColor?: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 min-w-0">
+      <span className="text-[11px] shrink-0 w-4 text-center">{icon}</span>
+      <span className="text-[10px] text-muted-foreground/50 shrink-0 w-24">{label}</span>
+      {bar !== undefined ? (
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <ScoreBar score={bar} color={barColor ?? "bg-primary/60"} />
+          <span className="text-[10px] font-bold text-foreground/60 shrink-0">{value}</span>
+        </div>
+      ) : (
+        <span className="text-[10px] font-semibold text-foreground/60 truncate flex-1">{value}</span>
+      )}
+    </div>
+  );
+}
+
+/** Polished AI Insights summary panel — top of expanded card */
+function AIInsightsPanel({ intel }: { intel: MatchIntelligence }) {
+  const { captainEngine, matchConditions, matchDifficulty } = intel;
+  const { pitchReport, weather, tossBias } = matchConditions;
+
+  const confidenceColor =
+    captainEngine.teamConfidencePct >= 75 ? "bg-green-400/70" :
+    captainEngine.teamConfidencePct >= 55 ? "bg-amber-400/70" :
+    "bg-red-400/60";
+
+  const diffColor =
+    matchDifficulty.score >= 68 ? "bg-red-400/70" :
+    matchDifficulty.score >= 42 ? "bg-amber-400/70" :
+    "bg-green-400/70";
+
+  return (
+    <div className="px-4 pt-3 pb-4 space-y-3">
+      {/* Section heading */}
+      <div className="flex items-center gap-2">
+        <span className="text-primary/50"><Icons.Sparkles /></span>
+        <span className="text-[10px] font-black uppercase tracking-widest text-primary/50">AI Insights</span>
+        <div className="flex-1 h-px bg-primary/10" />
+        <span className="text-[9px] text-muted-foreground/25 font-semibold uppercase tracking-wide">MOCK</span>
+      </div>
+
+      {/* ── Captain + VC row ───────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-2">
+        <CaptainInsightCard pick={captainEngine.bestCaptain} />
+        <CaptainInsightCard pick={captainEngine.bestVC} />
+      </div>
+
+      {/* ── Pick chips: Differential / Safe / Risk ─────────────────────────── */}
+      <div className="grid grid-cols-3 gap-1.5">
+        <PickChip pick={captainEngine.grandLeagueDiff} variant="differential" />
+        <PickChip pick={captainEngine.safePick} variant="safe" />
+        <PickChip pick={captainEngine.riskPick} variant="risk" />
+      </div>
+
+      {/* ── Metrics ────────────────────────────────────────────────────────── */}
+      <div className="rounded-xl border border-border/15 bg-muted/8 px-3 py-2.5 space-y-2">
+        <MetricRow
+          icon="📈"
+          label="Team Confidence"
+          value={`${captainEngine.teamConfidencePct}%`}
+          bar={captainEngine.teamConfidencePct}
+          barColor={confidenceColor}
+        />
+        <MetricRow
+          icon="🎯"
+          label="Match Difficulty"
+          value={`${matchDifficulty.level} · ${matchDifficulty.score}/100`}
+          bar={matchDifficulty.score}
+          barColor={diffColor}
+        />
+        <MetricRow
+          icon="🪙"
+          label="Toss Importance"
+          value={`${tossBias.label} · ${tossBias.importanceScore}%`}
+          bar={tossBias.importanceScore}
+          barColor="bg-yellow-400/70"
+        />
+        <MetricRow
+          icon="🌤"
+          label="Weather"
+          value={weather.isPlaceholder ? "Awaiting data" : weather.label}
+        />
+        <MetricRow
+          icon="🏟"
+          label="Pitch"
+          value={`${pitchReport.label} · Bat ${pitchReport.battingFriendlyPct}%`}
+          bar={pitchReport.battingFriendlyPct}
+          barColor="bg-orange-400/60"
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Captain/VC full pick row (detailed section) ───────────────────────────────
 
 function CaptainVCPickRow({ pick }: { pick: CaptainVCPick }) {
   const cfg = CAPTAIN_LABEL_CONFIG[pick.label];
@@ -340,6 +537,9 @@ export function MatchIntelligenceCard({ game }: { game: CricketGame }) {
       {open && (
         <div className="border-t border-primary/10 flex flex-col divide-y divide-border/15">
 
+          {/* ── AI Insights Panel (new polished summary) ──────────────────── */}
+          <AIInsightsPanel intel={intel} />
+
           {/* Row 1 — Difficulty + Risk ──────────────────────────────────────── */}
           <div className="grid grid-cols-2 gap-0 divide-x divide-border/15">
             <div className="px-4 py-3">
@@ -359,7 +559,7 @@ export function MatchIntelligenceCard({ game }: { game: CricketGame }) {
             </div>
           </div>
 
-          {/* ── Task 3: Pitch Report ──────────────────────────────────────── */}
+          {/* ── Pitch Report ──────────────────────────────────────────────── */}
           <div className="px-4 py-3">
             <SectionHeader icon={<Icons.Database />} label="Pitch Report" />
             <div className="flex items-center gap-2 mb-2">
@@ -389,13 +589,12 @@ export function MatchIntelligenceCard({ game }: { game: CricketGame }) {
               </div>
             </div>
             <p className="text-[10px] text-muted-foreground/40 leading-relaxed">{pitchReport.rationale}</p>
-            {/* Pace vs Spin */}
             <p className="text-[10px] text-muted-foreground/35 mt-1.5 leading-relaxed">
               {pitchReport.paceSpinRationale}
             </p>
           </div>
 
-          {/* ── Task 3: Weather + Dew Factor ─────────────────────────────── */}
+          {/* ── Weather + Dew Factor ─────────────────────────────────────── */}
           <div className="px-4 py-3">
             <SectionHeader icon={<Icons.Cloud />} label="Weather" />
             {weather.isPlaceholder ? (
@@ -416,7 +615,7 @@ export function MatchIntelligenceCard({ game }: { game: CricketGame }) {
             </div>
           </div>
 
-          {/* ── Task 3: Toss Bias ─────────────────────────────────────────── */}
+          {/* ── Toss Bias ─────────────────────────────────────────────────── */}
           <div className="px-4 py-3">
             <SectionHeader icon={<Icons.Coin />} label="Toss Bias" />
             <div className="flex items-center gap-2 mb-1.5">
@@ -430,7 +629,7 @@ export function MatchIntelligenceCard({ game }: { game: CricketGame }) {
             <p className="text-[10px] text-muted-foreground/40 leading-relaxed">{tossBias.rationale}</p>
           </div>
 
-          {/* ── Task 3: Match Conditions Summary ─────────────────────────── */}
+          {/* ── Match Conditions Summary ─────────────────────────────────── */}
           <div className="px-4 py-3">
             <SectionHeader icon={<Icons.Wind />} label="Match Conditions" />
             <div className="grid grid-cols-2 gap-3">
@@ -461,7 +660,7 @@ export function MatchIntelligenceCard({ game }: { game: CricketGame }) {
             </div>
           </div>
 
-          {/* ── Task 2: Captain/VC Engine ─────────────────────────────────── */}
+          {/* ── Captain/VC Engine (full detail) ──────────────────────────── */}
           <div className="px-4 py-3">
             <SectionHeader icon={<Icons.Star />} label="Captain / VC Engine" />
             <div className="flex flex-col">
@@ -469,6 +668,7 @@ export function MatchIntelligenceCard({ game }: { game: CricketGame }) {
               <CaptainVCPickRow pick={captainEngine.bestVC} />
               <CaptainVCPickRow pick={captainEngine.safePick} />
               <CaptainVCPickRow pick={captainEngine.grandLeagueDiff} />
+              <CaptainVCPickRow pick={captainEngine.riskPick} />
             </div>
           </div>
 
@@ -487,7 +687,7 @@ export function MatchIntelligenceCard({ game }: { game: CricketGame }) {
           {/* Footer */}
           <div className="px-4 py-2.5">
             <p className="text-[9px] text-muted-foreground/25 text-center leading-relaxed">
-              AI Mock Engine v0.2 · Format heuristics · No live pitch, weather, or dew data · Captain/VC Engine Task 2 · Match Conditions Task 3
+              AI Mock Engine v0.3 · Format heuristics · No live pitch, weather, or dew data · 5 picks + confidence
             </p>
           </div>
         </div>
