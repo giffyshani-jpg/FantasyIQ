@@ -9,6 +9,7 @@
 //   - 100-credit budget (standard cricket DFS)
 //   - Per-format scoring profiles (T20 / ODI / Test / The Hundred)
 //   - Fantasy provider credit enrichment (FantasyWala, Calc11, DafaFantasy)
+//   - AI Rating + Badge chip on every player row (Task 2)
 
 import React, { useEffect, useState, useMemo } from "react";
 import { Link, useParams } from "wouter";
@@ -22,6 +23,12 @@ import {
   type ScoringProfile,
 } from "../lib/cricket-scoring";
 import type { CricketPlayer, CricketGame, CricketRole } from "../lib/cricket-types";
+import {
+  computePlayerAIRating,
+  computePlayerBadge,
+  type PlayerAIRating,
+  type PlayerBadge,
+} from "../lib/ai-player-rating";
 
 // ─── Constants ────────────────────────────────────────────────────────────
 
@@ -79,6 +86,42 @@ function RoleBadge({ role }: { role: CricketRole }) {
   return (
     <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${ROLE_COLORS[role]}`}>
       {ROLE_LABELS[role]}
+    </span>
+  );
+}
+
+// ─── AI Rating chip (compact) ─────────────────────────────────────────────
+
+function AIRatingChip({ rating }: { rating: PlayerAIRating }) {
+  const cls =
+    rating.overall >= 85 ? "text-yellow-300 bg-yellow-900/30 border-yellow-700/40" :
+    rating.overall >= 72 ? "text-green-300 bg-green-900/30 border-green-700/40" :
+    rating.overall >= 58 ? "text-blue-300/80 bg-blue-900/20 border-blue-700/30" :
+    rating.overall >= 44 ? "text-slate-400 bg-slate-800/30 border-slate-600/25" :
+    "text-red-400/60 bg-red-900/15 border-red-700/25";
+  return (
+    <span className={`inline-flex text-[8px] font-black rounded px-1 py-0.5 border ${cls} shrink-0`}
+      title={`AI Rating: ${rating.overall}/100 — ${rating.label}`}>
+      AI {rating.overall}
+    </span>
+  );
+}
+
+// ─── Player Badge Chip ─────────────────────────────────────────────────────
+
+const BADGE_CONFIG: Record<PlayerBadge, { label: string; cls: string }> = {
+  HOT:          { label: "🔥 HOT",   cls: "bg-orange-900/50 text-orange-200 border-orange-600/50" },
+  SAFE:         { label: "🛡 SAFE",  cls: "bg-green-900/50 text-green-200 border-green-600/50" },
+  DIFFERENTIAL: { label: "⚡ DIFF",  cls: "bg-purple-900/50 text-purple-200 border-purple-600/50" },
+  RISKY:        { label: "⚠ RISKY", cls: "bg-red-900/50 text-red-200 border-red-600/50" },
+  "VALUE PICK": { label: "💎 VALUE", cls: "bg-cyan-900/50 text-cyan-200 border-cyan-600/50" },
+};
+
+function PlayerBadgeChip({ badge }: { badge: PlayerBadge }) {
+  const { label, cls } = BADGE_CONFIG[badge];
+  return (
+    <span className={`inline-flex items-center text-[8px] font-black uppercase tracking-wide rounded px-1.5 py-0.5 border ${cls}`}>
+      {label}
     </span>
   );
 }
@@ -181,6 +224,8 @@ function PlayerRow({
   isCaptain,
   isViceCaptain,
   profile,
+  aiRating,
+  badge,
   onToggle,
   onSetCaptain,
   onSetViceCaptain,
@@ -190,6 +235,8 @@ function PlayerRow({
   isCaptain: boolean;
   isViceCaptain: boolean;
   profile: ScoringProfile;
+  aiRating: PlayerAIRating | null;
+  badge: PlayerBadge | null;
   onToggle: (id: string) => void;
   onSetCaptain: (id: string) => void;
   onSetViceCaptain: (id: string) => void;
@@ -207,10 +254,10 @@ function PlayerRow({
         <RoleBadge role={player.role} />
       </div>
 
-      {/* Name + credits */}
+      {/* Name + credits + AI badge */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-foreground truncate">{player.name}</p>
-        <div className="flex items-center gap-2 mt-0.5">
+        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
           <span className="text-[10px] text-muted-foreground">{player.credits ?? DEFAULT_CREDITS} cr</span>
           {hasStats && (
             <span className={`text-[10px] font-bold ${pts > 0 ? "text-green-400" : "text-red-400"}`}>
@@ -218,6 +265,8 @@ function PlayerRow({
             </span>
           )}
           <span className="text-[10px] text-muted-foreground/50 truncate">{player.teamAbbreviation}</span>
+          {aiRating && <AIRatingChip rating={aiRating} />}
+          {badge && <PlayerBadgeChip badge={badge} />}
         </div>
       </div>
 
@@ -426,6 +475,23 @@ export default function CricketOptimizer() {
       });
     return () => { cancelled = true; };
   }, [game?.id, allPlayers.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── AI Ratings for all players ─────────────────────────────────────────
+  const playerRatings = useMemo<Map<string, PlayerAIRating>>(() => {
+    if (!game || allPlayers.length === 0) return new Map();
+    const map = new Map<string, PlayerAIRating>();
+    for (const p of allPlayers) {
+      map.set(
+        p.id,
+        computePlayerAIRating(p, {
+          format: game.format,
+          competitionName: game.competitionName,
+          isBattingFriendly: true,
+        }),
+      );
+    }
+    return map;
+  }, [game?.id, game?.format, allPlayers]);
 
   // ── Derived state ──────────────────────────────────────────────────────
   const creditsUsed = useMemo(() => {
@@ -678,19 +744,25 @@ export default function CricketOptimizer() {
                 </div>
               ) : (
                 <div className="max-h-[500px] overflow-y-auto">
-                  {filteredPlayers.map((player) => (
-                    <PlayerRow
-                      key={player.id}
-                      player={player}
-                      isSelected={selected.has(player.id)}
-                      isCaptain={captain === player.id}
-                      isViceCaptain={viceCaptain === player.id}
-                      profile={profile}
-                      onToggle={togglePlayer}
-                      onSetCaptain={handleSetCaptain}
-                      onSetViceCaptain={handleSetViceCaptain}
-                    />
-                  ))}
+                  {filteredPlayers.map((player) => {
+                    const aiRating = playerRatings.get(player.id) ?? null;
+                    const badge = aiRating ? computePlayerBadge(aiRating, player) : null;
+                    return (
+                      <PlayerRow
+                        key={player.id}
+                        player={player}
+                        isSelected={selected.has(player.id)}
+                        isCaptain={captain === player.id}
+                        isViceCaptain={viceCaptain === player.id}
+                        profile={profile}
+                        aiRating={aiRating}
+                        badge={badge}
+                        onToggle={togglePlayer}
+                        onSetCaptain={handleSetCaptain}
+                        onSetViceCaptain={handleSetViceCaptain}
+                      />
+                    );
+                  })}
                 </div>
               )}
             </div>

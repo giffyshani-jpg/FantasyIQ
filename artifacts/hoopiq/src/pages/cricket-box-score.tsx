@@ -3,8 +3,8 @@
 // Route: /cricket/:competition/game/:id
 //
 // Shows batting and bowling scorecards for each innings, live status,
-// AI Rating badges on each player row (Task 1), and a link to the cricket
-// fantasy optimizer.
+// AI Rating badges + coloured Player Badge chips on each player row,
+// and a link to the cricket fantasy optimizer.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "wouter";
@@ -15,7 +15,9 @@ import { calculateCricketFantasyPoints, getScoringProfile } from "../lib/cricket
 import { MatchIntelligenceCard } from "../components/cricket-match-intelligence";
 import {
   computeAllPlayerRatings,
+  computePlayerBadge,
   type PlayerAIRating,
+  type PlayerBadge,
 } from "../lib/ai-player-rating";
 
 // ─── Icons ─────────────────────────────────────────────────────────────────
@@ -38,7 +40,7 @@ function ZapIcon({ size = 14 }: { size?: number }) {
   );
 }
 
-// ─── AI Rating Badge (Task 1) ──────────────────────────────────────────────
+// ─── AI Rating Badge ───────────────────────────────────────────────────────
 
 function AIRatingBadge({ rating }: { rating: PlayerAIRating }) {
   const colorCls =
@@ -54,6 +56,26 @@ function AIRatingBadge({ rating }: { rating: PlayerAIRating }) {
       title={`AI Rating: ${rating.overall}/100 — ${rating.label}`}
     >
       AI {rating.overall}
+    </span>
+  );
+}
+
+// ─── Player Badge Chip ─────────────────────────────────────────────────────
+// Reusable colour-coded chip for HOT / SAFE / DIFFERENTIAL / RISKY / VALUE PICK
+
+const BADGE_CONFIG: Record<PlayerBadge, { label: string; cls: string }> = {
+  HOT:          { label: "🔥 HOT",        cls: "bg-orange-900/50 text-orange-200 border-orange-600/50" },
+  SAFE:         { label: "🛡 SAFE",       cls: "bg-green-900/50 text-green-200 border-green-600/50" },
+  DIFFERENTIAL: { label: "⚡ DIFF",       cls: "bg-purple-900/50 text-purple-200 border-purple-600/50" },
+  RISKY:        { label: "⚠ RISKY",      cls: "bg-red-900/50 text-red-200 border-red-600/50" },
+  "VALUE PICK": { label: "💎 VALUE",      cls: "bg-cyan-900/50 text-cyan-200 border-cyan-600/50" },
+};
+
+export function PlayerBadgeChip({ badge }: { badge: PlayerBadge }) {
+  const { label, cls } = BADGE_CONFIG[badge];
+  return (
+    <span className={`inline-flex items-center text-[8px] font-black uppercase tracking-wide rounded px-1.5 py-0.5 border ${cls}`}>
+      {label}
     </span>
   );
 }
@@ -192,9 +214,8 @@ function BattingCard({
       </div>
 
       {/* Header row */}
-      <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto] gap-1 px-4 py-1.5 border-b border-border/20">
+      <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-1 px-4 py-1.5 border-b border-border/20">
         <span className="text-[10px] font-semibold text-muted-foreground/60">Batter</span>
-        <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-8">AI</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">R</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">B</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">4s</span>
@@ -207,21 +228,25 @@ function BattingCard({
         const pts = calculateCricketFantasyPoints(p.stats, profile);
         const notOut = !bat.dismissed;
         const aiRating = ratings.get(p.id);
+        const badge = aiRating ? computePlayerBadge(aiRating, p) : null;
         return (
           <div key={p.id}
-            className={`grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto] gap-1 px-4 py-2.5 items-start ${i < players.length - 1 ? "border-b border-border/15" : ""}`}>
+            className={`grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-1 px-4 py-2.5 items-start ${i < players.length - 1 ? "border-b border-border/15" : ""}`}>
+            {/* Name + AI Rating + Badge */}
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-foreground truncate">
-                {p.name}
-                {notOut && <span className="ml-1 text-[10px] text-green-400 font-bold">*</span>}
-              </p>
-              {bat.dismissal && !notOut && (
-                <p className="text-[10px] text-muted-foreground/50 truncate mt-0.5">{bat.dismissal}</p>
-              )}
-            </div>
-            {/* AI Rating badge */}
-            <div className="flex items-center justify-end w-8">
-              {aiRating ? <AIRatingBadge rating={aiRating} /> : <span className="w-8" />}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="text-sm font-semibold text-foreground truncate">
+                  {p.name}
+                  {notOut && <span className="ml-1 text-[10px] text-green-400 font-bold">*</span>}
+                </p>
+                {aiRating && <AIRatingBadge rating={aiRating} />}
+              </div>
+              <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                {bat.dismissal && !notOut && (
+                  <p className="text-[10px] text-muted-foreground/50 truncate">{bat.dismissal}</p>
+                )}
+                {badge && <PlayerBadgeChip badge={badge} />}
+              </div>
             </div>
             <span className={`text-sm font-bold text-right w-7 ${bat.runs >= 50 ? "text-yellow-400" : bat.runs >= 25 ? "text-orange-400" : "text-foreground"}`}>
               {bat.runs}
@@ -262,9 +287,8 @@ function BowlingCard({
       </div>
 
       {/* Header row */}
-      <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto] gap-1 px-4 py-1.5 border-b border-border/20">
+      <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-1 px-4 py-1.5 border-b border-border/20">
         <span className="text-[10px] font-semibold text-muted-foreground/60">Bowler</span>
-        <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-8">AI</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">O</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">M</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">R</span>
@@ -277,13 +301,21 @@ function BowlingCard({
         const oversStr = bowl.extraBalls > 0 ? `${bowl.overs}.${bowl.extraBalls}` : `${bowl.overs}`;
         const pts = calculateCricketFantasyPoints(p.stats, profile);
         const aiRating = ratings.get(p.id);
+        const badge = aiRating ? computePlayerBadge(aiRating, p) : null;
         return (
           <div key={p.id}
-            className={`grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto] gap-1 px-4 py-2.5 items-center ${i < players.length - 1 ? "border-b border-border/15" : ""}`}>
-            <p className="text-sm font-semibold text-foreground truncate">{p.name}</p>
-            {/* AI Rating badge */}
-            <div className="flex items-center justify-end w-8">
-              {aiRating ? <AIRatingBadge rating={aiRating} /> : <span className="w-8" />}
+            className={`grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-1 px-4 py-2.5 items-start ${i < players.length - 1 ? "border-b border-border/15" : ""}`}>
+            {/* Name + AI Rating + Badge */}
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="text-sm font-semibold text-foreground truncate">{p.name}</p>
+                {aiRating && <AIRatingBadge rating={aiRating} />}
+              </div>
+              {badge && (
+                <div className="mt-0.5">
+                  <PlayerBadgeChip badge={badge} />
+                </div>
+              )}
             </div>
             <span className="text-xs text-muted-foreground text-right w-7">{oversStr}</span>
             <span className="text-xs text-muted-foreground text-right w-7">{bowl.maidens}</span>

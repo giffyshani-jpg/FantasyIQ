@@ -4,6 +4,9 @@
 //   Recent Form · Venue Record · Opposition Strength · Batting Position
 //   Bowling Opportunity · Fantasy Consistency · Expected Playing Time · Risk
 //
+// Also provides a `PlayerBadge` classification (HOT / SAFE / DIFFERENTIAL / RISKY / VALUE PICK)
+// for use as colour-coded chips on player cards.
+//
 // ALL values are currently MOCK/HEURISTIC — derived from available stats.
 // Architecture is designed so each factor can be replaced with a live provider
 // without changing the public interfaces consumers depend on.
@@ -15,6 +18,10 @@
 // Usage (all players):
 //   const ratingsMap = computeAllPlayerRatings(players, ctx);
 //   const r = ratingsMap.get(player.id);
+//
+// Usage (badge):
+//   const badge = computePlayerBadge(rating, player);
+//   // "HOT" | "SAFE" | "DIFFERENTIAL" | "RISKY" | "VALUE PICK" | null
 //
 // To plug in live data:
 //   1. Replace mock factor helpers with live API/ML calls
@@ -46,6 +53,12 @@ export interface PlayerRatingFactors {
 }
 
 export type RatingLabel = "Elite" | "Excellent" | "Good" | "Average" | "Risky" | "Poor";
+
+/**
+ * Player badge — one exclusive classification per player for UI display.
+ * Priority order: HOT → SAFE → VALUE PICK → DIFFERENTIAL → RISKY
+ */
+export type PlayerBadge = "HOT" | "SAFE" | "DIFFERENTIAL" | "RISKY" | "VALUE PICK";
 
 /** Full AI rating output for one player. */
 export interface PlayerAIRating {
@@ -335,4 +348,32 @@ export function computeAllPlayerRatings(
     map.set(p.id, computePlayerAIRating(p, ctx));
   }
   return map;
+}
+
+/**
+ * Classify a player into an exclusive badge category.
+ *
+ * Priority order:
+ *   HOT        — overall >= 78 (fire pick, strong form)
+ *   SAFE       — high riskScore + overall >= 55 (reliable floor)
+ *   VALUE PICK — overall >= 58 AND low credit cost (< 8.5 cr)
+ *   DIFFERENTIAL — overall >= 52, not a mainstream pick
+ *   RISKY      — overall < 44 (volatile, use with caution)
+ *   null       — average player, no special classification
+ *
+ * Architecture: replace thresholds with ML-calibrated ownership data when available.
+ */
+export function computePlayerBadge(
+  rating: PlayerAIRating,
+  player: CricketPlayer,
+): PlayerBadge | null {
+  const { overall, factors } = rating;
+  const credits = player.credits ?? 8.5;
+
+  if (overall >= 78) return "HOT";
+  if (factors.riskScore >= 68 && overall >= 55) return "SAFE";
+  if (overall >= 58 && credits < 8.5) return "VALUE PICK";
+  if (overall < 44) return "RISKY";
+  if (overall >= 52) return "DIFFERENTIAL";
+  return null;
 }
