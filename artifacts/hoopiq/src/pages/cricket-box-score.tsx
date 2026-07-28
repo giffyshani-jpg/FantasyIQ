@@ -363,6 +363,52 @@ function InningsSection({
   );
 }
 
+// ─── Task 4: Match Summary card for completed matches ─────────────────────
+//
+// Shown ABOVE the AI intelligence card for final-status matches.
+// Displays all available structured data: result, venue, competition, format.
+// Player of Match and Toss are not provided by TSDB free tier.
+
+function MatchSummaryCard({ game }: { game: CricketGame }) {
+  if (game.status !== "final") return null;
+
+  const rows: { icon: string; label: string; value: string }[] = [
+    ...(game.result ? [{ icon: "🏆", label: "Result",      value: game.result }]           : []),
+    ...(game.venue  ? [{ icon: "📍", label: "Venue",       value: game.venue }]             : []),
+    {                  icon: "🏆",  label: "Competition",  value: game.competitionName      },
+    {                  icon: "📋",  label: "Format",       value: game.format               },
+  ];
+
+  return (
+    <div className="rounded-2xl border border-border/30 overflow-hidden bg-card">
+      <div className="flex items-center gap-2 px-4 py-3 bg-muted/20 border-b border-border/20">
+        <span className="text-base">🏁</span>
+        <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+          Match Summary
+        </span>
+      </div>
+      <div className="px-4 py-2">
+        {rows.map(({ icon, label, value }) => (
+          value ? (
+            <div key={label} className="flex items-start gap-2.5 py-2 border-b border-border/10 last:border-0">
+              <span className="text-base shrink-0 mt-0.5">{icon}</span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider">{label}</p>
+                <p className="text-sm font-semibold text-foreground mt-0.5">{value}</p>
+              </div>
+            </div>
+          ) : null
+        ))}
+        <div className="py-2">
+          <p className="text-[10px] text-muted-foreground/30 leading-relaxed">
+            Player of Match and Toss details not available from TheSportsDB free tier.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Pre-match / No-scorecard panel ──────────────────────────────────────
 //
 // Task 3: Never leave a blank page. Show all available data regardless of
@@ -575,6 +621,11 @@ export default function CricketBoxScore() {
         {!loading && game && (
           <>
             <MatchHeader game={game} />
+
+            {/* Task 4: Match summary for completed; pre-match AI preview for upcoming */}
+            {game.status === "final" && (
+              <MatchSummaryCard game={game} />
+            )}
 
             <MatchIntelligenceCard game={game} />
 

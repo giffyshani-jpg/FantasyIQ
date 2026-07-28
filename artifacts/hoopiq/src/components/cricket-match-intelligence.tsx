@@ -395,7 +395,7 @@ function AIInsightsPanel({ intel }: { intel: MatchIntelligence }) {
         <MetricRow
           icon="🌤"
           label="Weather"
-          value={weather.isPlaceholder ? "Awaiting data" : weather.label}
+          value={weather.label}
         />
         <MetricRow
           icon="🏟"
@@ -566,7 +566,7 @@ export function MatchIntelligenceCard({ game }: { game: CricketGame }) {
               <span className="text-xs font-bold text-foreground/80">{pitchReport.label}</span>
               <PaceSpinBadge bias={pitchReport.paceSpinBias} />
               <span className="text-[9px] font-bold text-muted-foreground/30 bg-muted/20 border border-border/20 rounded px-1.5 py-0.5">
-                PLACEHOLDER
+                ESTIMATED
               </span>
             </div>
             {/* Batting/Bowling bars */}
@@ -597,11 +597,15 @@ export function MatchIntelligenceCard({ game }: { game: CricketGame }) {
           {/* ── Weather + Dew Factor ─────────────────────────────────────── */}
           <div className="px-4 py-3">
             <SectionHeader icon={<Icons.Cloud />} label="Weather" />
-            {weather.isPlaceholder ? (
-              <PlaceholderPill text={weather.impact} />
-            ) : (
-              <p className="text-[10px] text-muted-foreground/45 leading-relaxed">{weather.impact}</p>
-            )}
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-bold text-foreground/80">{weather.label}</span>
+              {weather.isPlaceholder && (
+                <span className="text-[9px] font-bold text-muted-foreground/30 bg-muted/20 border border-border/20 rounded px-1.5 py-0.5">
+                  ESTIMATED
+                </span>
+              )}
+            </div>
+            <p className="text-[10px] text-muted-foreground/45 leading-relaxed">{weather.impact}</p>
             {/* Dew Factor */}
             <div className="mt-2.5">
               <div className="flex items-center gap-2 mb-1">

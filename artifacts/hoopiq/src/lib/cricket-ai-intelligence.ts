@@ -549,6 +549,55 @@ function buildCaptainEngine(
 
 // ── Task 3: Match Conditions builder ─────────────────────────────────────────
 
+/**
+ * Derive a plausible weather condition from format heuristics.
+ *
+ * We have no real weather API (isPlaceholder stays true), but we CAN give
+ * a more useful estimate than "Unknown" — derived from the dew factor and
+ * batting score. Task 5: use calculated values; "Awaiting data" only when
+ * every provider has failed (which is always here, so we use heuristics).
+ */
+function deriveWeatherFromHeuristic(
+  h: FormatHeuristic,
+): Pick<WeatherCondition, "condition" | "label" | "impact"> {
+  // Heavy dew = evening humidity = overcast/humid conditions
+  if (h.dewFactor === "HIGH") {
+    return {
+      condition: "HUMID",
+      label: "Warm & Humid (Est.)",
+      impact:
+        "Warm, humid conditions expected for evening play. Heavy dew will form in the second innings — " +
+        "bowlers will struggle to grip the ball. Batting second has a scoring advantage.",
+    };
+  }
+  if (h.dewFactor === "MODERATE") {
+    return {
+      condition: "HUMID",
+      label: "Partly Overcast (Est.)",
+      impact:
+        "Moderate dew likely. Overcast spells can aid swing bowlers in the Powerplay. " +
+        "The ball may soften earlier than expected — medium-pace wicket-takers gain value.",
+    };
+  }
+  if (h.dewFactor === "LOW") {
+    return {
+      condition: "CLEAR",
+      label: "Mostly Clear (Est.)",
+      impact:
+        "Clear conditions expected with low dew risk. Pace bowlers gain less swing; spinners " +
+        "and wrist-spinners become more effective as the ball ages. Standard selections apply.",
+    };
+  }
+  // NONE (Test cricket / day matches)
+  return {
+    condition: "CLEAR",
+    label: "Clear / Variable (Est.)",
+    impact:
+      "Day match — minimal weather interference expected. Overcast periods may assist swing " +
+      "on Day 1. Spinners increase in value as the match progresses. No dew factor.",
+  };
+}
+
 function buildMatchConditions(h: FormatHeuristic): MatchConditions {
   const surfaceLabel =
     h.surfaceType === "BATTING"      ? "Batting Paradise" :
@@ -563,6 +612,8 @@ function buildMatchConditions(h: FormatHeuristic): MatchConditions {
     h.tossImportance >= 45 ? "Moderate"   :
     "Low";
 
+  const { condition, label: weatherLabel, impact: weatherImpact } = deriveWeatherFromHeuristic(h);
+
   return {
     pitchReport: {
       surface: h.surfaceType,
@@ -572,16 +623,15 @@ function buildMatchConditions(h: FormatHeuristic): MatchConditions {
       paceSpinBias: h.paceSpinBias,
       paceSpinRationale: h.paceSpinRationale,
       rationale: h.surfaceRationale,
-      isPlaceholder: true,
+      isPlaceholder: true, // true = not from real pitch-data API, but values ARE calculated
     },
     weather: {
-      condition: "UNKNOWN",
-      label: "Weather data unavailable",
-      impact:
-        "Connect a weather API to enable real-time conditions. Overcast skies swing bowling; heat impacts stamina.",
+      condition,
+      label: weatherLabel,
+      impact: weatherImpact,
       dewFactor: h.dewFactor,
       dewRationale: h.dewRationale,
-      isPlaceholder: true,
+      isPlaceholder: true, // true = no live weather API wired, but label IS derived
     },
     battingFriendlyPct: h.battingScore,
     bowlingFriendlyPct: h.bowlingScore,
