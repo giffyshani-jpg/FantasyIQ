@@ -387,7 +387,7 @@ export async function getLeagueOverview() {
   }
   const activeCompetitions = [...activeCompetitionNames];
 
-  return { live, upcoming, lastPlayed, activeCompetitions };
+  return { live, upcoming, lastPlayed, recentCompleted, activeCompetitions };
 }
 
 /**

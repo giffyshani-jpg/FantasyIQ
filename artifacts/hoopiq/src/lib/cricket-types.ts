@@ -138,6 +138,8 @@ export type CricketLeagueOverview = {
   live: CricketGame[];
   upcoming: CricketGame[];
   lastPlayed: CricketGame | null;
+  /** All completed (final) games from yesterday + today, sorted newest first. */
+  recentCompleted: CricketGame[];
   /** Competitions that returned at least one game. */
   activeCompetitions: string[];
 };
