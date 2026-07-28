@@ -2,40 +2,63 @@
 
 ## Latest Session Summary
 
-Feature Session 3 — Tasks 1 + 2 built (2026-07-28).
+Feature Session 4 — Tasks 1–6 (Cricket Data Engine) — 2026-07-28.
 
-**Task 1 — AI Insights Panel (rebuilt from scratch):**
-- `src/lib/cricket-ai-intelligence.ts`:
-  - Added `riskPick: CaptainVCPick` to `CaptainVCEngine` — 5th pick, high-variance boom-or-bust (batter/bowler outside main 4 picks)
-  - Added `teamConfidencePct: number` to `CaptainVCEngine` — average of C+VC confidence % adjusted by format risk level
-  - `CaptainLabel` union extended with `"RISK_PICK"`
-  - `CAPTAIN_LABEL_CONFIG` record updated with `RISK_PICK` entry (icon ⚠, short "RISK")
-- `src/components/cricket-match-intelligence.tsx`:
-  - New `AIInsightsPanel` component rendered at top of expanded card
-  - `CaptainInsightCard` — compact 2-col card for C+VC (AI rating, score, confidence)
-  - `PickChip` — small 3-col chip for Differential / Safe / Risk picks
-  - `MetricRow` — icon + label + optional progress bar for 5 match metrics
-  - Captain/VC Engine detail section now renders all 5 picks including `riskPick`
-- TypeScript: clean | Build: success
+### Task 1 — Fix Cricket Date/Time Engine
+- `providers/cricket.js`:
+  - `fmtDate()`: UTC (`toISOString().slice(0,10)`) → local (`toLocaleDateString("en-CA")`)
+  - Day-based query window: `[-1..+3]` → `[-2..+3]`
+  - `normalizeTsdbEvent()` fallback startTimeIso: UTC noon proxy (`T12:00:00Z`) replaces venue-local strTime
+  - `recentCompleted` filtered to 48h window (was all completed ever)
+  - `KNOWN_LEAGUES` expanded: The Hundred (M/W), ICC T20I/ODI/Test, ICC T20WC/ODIWC/CT, WPL, WBBL, Abu Dhabi T10
+  - `detectFormat()`: ODI regex excludes T20WC; T10 catches Abu Dhabi T10
+- `pages/cricket-schedule.tsx`:
+  - Recent tab: all completed last 48h (not just most-recent-date's games)
+  - Today/Tomorrow tabs: include completed from recentCompleted matching target date; dedup by id
 
-**Task 2 — Player AI Badges:**
-- `src/lib/ai-player-rating.ts`:
-  - New `PlayerBadge` type: `"HOT" | "SAFE" | "DIFFERENTIAL" | "RISKY" | "VALUE PICK"`
-  - New `computePlayerBadge(rating, player): PlayerBadge | null` — exclusive classification, priority: HOT → SAFE → VALUE PICK → RISKY → DIFFERENTIAL
-- `src/pages/cricket-box-score.tsx`:
-  - New `PlayerBadgeChip` component (reusable, colour-coded)
-  - Badge shown below player name on batting rows and bowling rows
-  - AI Rating badge stays inline with name; badge chip goes on next line
-- `src/pages/cricket-optimizer.tsx`:
-  - New `AIRatingChip` (compact version for tighter rows)
-  - New `PlayerBadgeChip` (same config as box score)
-  - `PlayerRow` accepts `aiRating: PlayerAIRating | null` and `badge: PlayerBadge | null`
-  - AI ratings computed via `useMemo` over `allPlayers` + game format context
-- TypeScript: clean | Build: success
+### Task 2 — Auto-detect Match Format
+- `pages/cricket-optimizer.tsx`:
+  - Removed `ProfileSelector` (manual picker)
+  - Added `DetectedFormatCard` (read-only: format badge + "AUTO-DETECTED from {competition}")
+  - `FORMAT_COLORS` map for format badge colours
+  - `SCORING_PROFILES` import removed (was unused after selector removal)
+  - Internal `profile` state + auto-set from `getScoringProfile()` on game load — unchanged
 
-Previous sessions summarised in CURRENT_STATUS.md.
+### Task 3 — Cricket Data Fallback Engine
+- `providers/cricket.js`:
+  - Added `GAME_CACHE` (2 min scheduled / 10 min final TTL)
+  - `findInCache()` — scans DAY_CACHE + LEAGUE_CACHE for game by ID
+  - `buildMinimalGame(gameId)` — constructs minimal game shell (never null)
+  - `fetchGameById()` now has 3-tier fallback: TSDB lookupevent → cache scan → minimal shell
+  - Logs: `console.info` on success, `console.warn` on miss/fallback
+- `pages/cricket-box-score.tsx`:
+  - `NoScorecard` → `InfoRow`-based pre-match / no-scorecard panel
+  - Shows venue, competition, format, start time for scheduled; result + note for completed
+- `pages/cricket-optimizer.tsx`:
+  - Context-aware empty player pool message (scheduled / in-progress / final)
+  - Shows venue + competition from game even when no players available
 
-## Architecture (as of Feature Session 3)
+### Tasks 4+5 — Match Details & Optimizer Data
+- `lib/cricket-ai-intelligence.ts`:
+  - Added `deriveWeatherFromHeuristic(h)` — derives weather label + impact from dew factor
+  - `buildMatchConditions()`: weather.label + weather.condition now set from heuristic (not hardcoded "UNKNOWN")
+  - `isPlaceholder: true` stays on weather/pitch — flag means "not from live API", not "no data"
+- `components/cricket-match-intelligence.tsx`:
+  - Weather section: header with derived label + ESTIMATED badge; always shows impact text
+  - Pitch Report: PLACEHOLDER badge → ESTIMATED
+  - AIInsightsPanel Weather MetricRow: `weather.label` (not `"Awaiting data"`)
+- `pages/cricket-box-score.tsx`:
+  - Added `MatchSummaryCard` — shown for `final`-status matches above AI card
+  - Displays: Result, Venue, Competition, Format + POTM/Toss unavailable note
+
+### Task 6 — Smoke Test
+- TypeScript: ✅ 0 errors
+- Build: ✅ Success
+- All 13 invariants confirmed — see CURRENT_STATUS.md
+
+---
+
+## Architecture (as of Feature Session 4)
 
 ### Routing
 ```
@@ -49,7 +72,7 @@ Previous sessions summarised in CURRENT_STATUS.md.
 /:league/game/:id/plays        → PlayByPlay
 /:league/game/:id/compare      → PlayerComparison
 /:league/player/:playerId      → PlayerDetail
-/cricket/:competition/game/:id             → CricketBoxScore  ← AI Insights + Rating + Badges
+/cricket/:competition/game/:id             → CricketBoxScore  ← Match Summary + AI Insights + Rating + Badges
 /cricket/:competition/game/:id/optimizer   → CricketOptimizer  ← AI Rating + Badges on PlayerRow
 ```
 
@@ -60,7 +83,7 @@ artifacts/hoopiq/
     api.js                    — adapter boundary; ALL provider calls go through here
     App.tsx                   — routes; cricket routes MUST come before /:league catch-all
     providers/
-      cricket.js              — TheSportsDB multi-league + day-based auto-discovery
+      cricket.js              — TheSportsDB multi-league + day-based; 3-tier fetchGameById fallback
       espn.js                 — ESPN provider (NBA, WNBA, NBL, FIBA, Summer)
       nba.js / wnba.js        — league wrappers around espn.js
       nbadotcom.js            — NBA CDN fallback
@@ -72,10 +95,10 @@ artifacts/hoopiq/
       types.ts                — LeagueKey union, Game, Player types
       cricket-types.ts        — CricketGame, CricketPlayer, CricketInnings, etc.
       cricket-scoring.ts      — scoring engine (T20/ODI/Test/Hundred/T10 profiles)
-      cricket-ai-intelligence.ts  ← AI Match Intelligence + Captain/VC Engine (5 picks) + Match Conditions
+      cricket-ai-intelligence.ts  ← AI Match Intelligence + Captain/VC Engine + Match Conditions + weather heuristic
       ai-player-rating.ts     ← per-player 0–100 AI rating + PlayerBadge classification
       format-filter.ts        — filterStatsByFormat(), computeRollingStats()
-      provider-manager.ts     — createProviderManager() — not yet wired
+      provider-manager.ts     — createProviderManager() — implemented, not yet wired into api.js
       stats.ts                — basketball fantasy points formula
       pregame-intel.ts        — pre-game intelligence heuristics
       ai-coach.ts             — AI Fantasy Coach 12 named picks
@@ -83,11 +106,11 @@ artifacts/hoopiq/
       home.tsx                — FantasyIQ home hub (3 sport cards)
       basketball.tsx          — /basketball — Recent/Today/Tomorrow tabs
       cricket-schedule.tsx    — /cricket — Recent/Today/Tomorrow tabs
-      cricket-box-score.tsx   — /cricket/:competition/game/:id  ← AI Insights + Badges
-      cricket-optimizer.tsx   — /cricket/:competition/game/:id/optimizer  ← AI Badges
+      cricket-box-score.tsx   — /cricket/:competition/game/:id  ← MatchSummaryCard + AI + Badges
+      cricket-optimizer.tsx   — /cricket/:competition/game/:id/optimizer  ← DetectedFormatCard + AI Badges
       football.tsx            — /football — coming soon banner
     components/
-      cricket-match-intelligence.tsx  ← AI Insights Panel + full Captain/VC detail
+      cricket-match-intelligence.tsx  ← AI Insights Panel + full Captain/VC detail + Estimated weather
 ```
 
 ### Key Invariants — NEVER BREAK THESE
@@ -102,89 +125,83 @@ artifacts/hoopiq/
 8. **All date/time helpers live in `src/lib/date-utils.ts`** — do NOT add new local date helpers in page files.
 9. **`PORT` and `BASE_PATH` are required** for both `vite dev` and `vite build`.
 10. **AI intelligence `isMock: true`** on all outputs — consumers must show MOCK badge. Do not remove until real AI provider wired.
-11. **`isPlaceholder: true`** on `surface`, `weather`, `pitchReport`, `weather` in MatchConditions — explicit flag, do not remove until real pitch/weather API wired.
+11. **`isPlaceholder: true`** on `surface`, `weather`, `pitchReport` in MatchConditions — means "not from live API". Values ARE derived from heuristics. Do not remove flag until real pitch/weather API wired.
 12. **`computePlayerAIRating()` returns `isMock: true`** — keep until real player-history provider wired.
 13. **`computePlayerBadge()` is exclusive** — returns one badge or null, priority: HOT→SAFE→VALUE PICK→RISKY→DIFFERENTIAL. Do not change priority without updating docs.
+14. **`fetchGameById()` 3-tier fallback** — Provider 1 (TSDB) → Provider 2 (cache scan) → Provider 3 (minimal shell). Never return null from fetchGameById. Tier 3 must always produce a renderable game object.
+15. **`fmtDate()` in cricket.js** uses `toLocaleDateString("en-CA")` for local timezone. Do NOT revert to UTC (`toISOString().slice(0,10)`).
 
 ### Dev Commands
 ```bash
 pnpm --filter @workspace/hoopiq run typecheck         # must pass before every commit
 PORT=21534 BASE_PATH=/ pnpm --filter @workspace/hoopiq run dev    # Vite dev server
 PORT=21534 BASE_PATH=/ pnpm --filter @workspace/hoopiq run build  # production build
+git push origin main   # from /home/runner/FantasyIQ
 ```
 
 ### Workflow Notes
 - Managed workflow: `artifacts/hoopiq: web` (use WorkflowsRestart to start)
 - Manual workflow: `HoopIQ` — `PORT=21534 BASE_PATH=/ pnpm --filter @workspace/hoopiq run dev`
-- Push: `git push origin main` from the cloned repo directory
+- Push: `git push origin main` from the cloned repo directory (`/home/runner/FantasyIQ`)
 
-## PlayerBadge System (Task 2)
+---
+
+## Cricket Provider Architecture (Feature Session 4)
+
+### `fetchGameById()` Fallback Chain
+
+```
+Provider 1: TSDB lookupevent.php?id={eventId}
+  ✓ success → normalizeTsdbEvent() → setCachedGame() → return
+  ✗ fail    → console.warn + fall through
+
+Provider 2: In-memory cache scan (findInCache)
+  Searches: DAY_CACHE (Map keyed by date string) + LEAGUE_CACHE (Map keyed by leagueId)
+  ✓ hit  → spread + allPlayers=[] + _provider="cache-scan" → setCachedGame() → return
+  ✗ miss → console.warn + fall through
+
+Provider 3: buildMinimalGame(gameId)
+  Always succeeds — constructs minimal CricketGame shell
+  _provider = "minimal-fallback"
+  status = "scheduled", teams = "Unknown"
+  NOT cached (retry fresh on next navigation)
+```
+
+### GAME_CACHE TTLs
+- Scheduled / in-progress: 2 minutes
+- Final: 10 minutes
+
+---
+
+## Weather Derivation (Feature Session 4)
+
+`deriveWeatherFromHeuristic(h: FormatHeuristic)` in `cricket-ai-intelligence.ts`:
+
+| Dew Factor | condition | label |
+|------------|-----------|-------|
+| HIGH | HUMID | "Warm & Humid (Est.)" |
+| MODERATE | HUMID | "Partly Overcast (Est.)" |
+| LOW | CLEAR | "Mostly Clear (Est.)" |
+| NONE | CLEAR | "Clear / Variable (Est.)" |
+
+Impact text is format/dew-aware. `isPlaceholder: true` stays set (label says "Est." to signal estimation). To plug in real weather, replace `deriveWeatherFromHeuristic()` return values with live API data and set `isPlaceholder: false`.
+
+---
+
+## PlayerBadge System
 
 **File:** `src/lib/ai-player-rating.ts`
 
-**Public interface:**
-```typescript
-export type PlayerBadge = "HOT" | "SAFE" | "DIFFERENTIAL" | "RISKY" | "VALUE PICK";
-
-// Entry point:
-computePlayerBadge(rating: PlayerAIRating, player: CricketPlayer): PlayerBadge | null
-```
-
-**Classification thresholds (exclusive, priority order):**
 | Badge | Condition |
 |-------|-----------|
 | HOT | overall ≥ 78 |
-| SAFE | factors.riskScore ≥ 68 AND overall ≥ 55 |
-| VALUE PICK | overall ≥ 58 AND player.credits < 8.5 |
+| SAFE | riskScore ≥ 68 AND overall ≥ 55 |
+| VALUE PICK | overall ≥ 58 AND credits < 8.5 |
 | RISKY | overall < 44 |
 | DIFFERENTIAL | overall ≥ 52 (catch-all) |
-| null | average player, 44–51 range |
+| null | 44–51 range — no badge |
 
-**UI chip config in both box-score and optimizer:**
-```
-HOT          → 🔥 HOT   orange
-SAFE         → 🛡 SAFE  green
-DIFFERENTIAL → ⚡ DIFF  purple
-RISKY        → ⚠ RISKY  red
-VALUE PICK   → 💎 VALUE  cyan
-```
-
-**To plug in live data:**
-- Replace `computeRiskScore()` with real lineup confirmation status
-- Replace `computeFantasyConsistency()` with historical points-per-game data
-- Adjust thresholds once real ownership % data is available
-
-## AI Insights Panel (Task 1)
-
-**Component:** `AIInsightsPanel` in `src/components/cricket-match-intelligence.tsx`
-
-**Sub-components:**
-- `CaptainInsightCard` — 2-column grid (Best Captain + Best VC) with role pill, AI rating, score, confidence
-- `PickChip` — 3-column grid with variant="differential"|"safe"|"risk" — shows last name + AI rating
-- `MetricRow` — icon + 24px label + progress bar + value text
-
-**10 signals displayed:**
-1. ⭐ Best Captain (from captainEngine.bestCaptain)
-2. ⭐ Best VC (from captainEngine.bestVC)
-3. 🔥 Differential (from captainEngine.grandLeagueDiff)
-4. 🛡 Safe Pick (from captainEngine.safePick)
-5. ⚠ Risk Pick (from captainEngine.riskPick — new)
-6. 📈 Team Confidence % (from captainEngine.teamConfidencePct — new)
-7. 🎯 Match Difficulty (score + level)
-8. 🌤 Weather (placeholder label until API)
-9. 🏟 Pitch (label + batting %)
-10. 🪙 Toss Importance (label + importance %)
-
-## AI Match Intelligence System (prior sessions)
-
-See CURRENT_STATUS.md for details on Session 1 (AI Match Intelligence Card) and Session 2 (Rating Engine + Captain/VC Engine + Match Conditions).
-
-## Cricket Tab System
-
-Tabs: **Recent (0) · Today (1) · Tomorrow (2)**
-
-Recent tab (cricket): reads `overview.recentCompleted` — no extra API calls.
-Recent tab (basketball): `findRecentDate()` walks backwards up to 30 days via API.
+---
 
 ## TheSportsDB Cricket League IDs
 
@@ -207,30 +224,23 @@ const KNOWN_LEAGUES = [
   { id: 5534, name: "Shpageeza Cricket League",        format: "T20"  },
   { id: 5535, name: "Zimbabwe T20",                    format: "T20"  },
   { id: 5606, name: "Ireland T20 Trophy",              format: "T20"  },
+  { id: 5561, name: "The Hundred (Men's)",             format: "The Hundred" },
+  { id: 5562, name: "The Hundred (Women's)",           format: "The Hundred" },
+  { id: 4464, name: "ICC International T20I",          format: "T20"  },
+  { id: 4465, name: "ICC International ODI",           format: "ODI"  },
+  { id: 4466, name: "ICC International Test",          format: "Test" },
+  { id: 4455, name: "ICC T20 World Cup",               format: "T20"  },
+  { id: 4456, name: "ICC Cricket World Cup (ODI)",     format: "ODI"  },
+  { id: 4457, name: "ICC Champions Trophy",            format: "ODI"  },
+  { id: 4902, name: "ICC Women's T20 World Cup",       format: "T20"  },
+  { id: 4903, name: "ICC Women's Cricket World Cup",   format: "ODI"  },
+  { id: 4904, name: "ICC Women's T20I",                format: "T20"  },
+  { id: 4905, name: "ICC Women's ODI",                 format: "ODI"  },
+  { id: 5560, name: "Women's Premier League",          format: "T20"  },
+  { id: 5607, name: "WBBL",                            format: "T20"  },
+  { id: 5563, name: "Abu Dhabi T10",                   format: "T10"  },
 ];
 ```
 
-## What the Next Session Should Know
-
-### Git / workspace
-- Working directory: the cloned repo (e.g. `/tmp/fantasyiq` or wherever freshly cloned)
-- Source code: `artifacts/hoopiq/src/`
-- Docs: `docs/` (repo root — only documentation location)
-- Push via: `git push origin main`
-- Run `pnpm install` first if `node_modules/` is missing after a fresh clone
-
-### AI work remaining
-1. Wire real pitch data provider (e.g. Cricbuzz API) — set `pitchReport.isPlaceholder = false`
-2. Wire real weather provider — set `weather.isPlaceholder = false`
-3. Extend AI Player Rating to Basketball
-4. Extend Captain/VC Engine to Basketball box score
-5. Replace mock `venueRecord` / `oppositionStrength` with real player-history API
-6. Replace mock captain rationale with ML-generated text
-7. Add AI Badges to cricket-schedule.tsx player preview cards (pre-match context)
-8. Plug real ownership % data into `computePlayerBadge()` thresholds
-
-### Cricket data limitation
-TheSportsDB free tier: NS/FT only — no live scores. Games show "Starting" until FT confirmed.
-
-### Football
-Infrastructure only. Fantasy logic NOT implemented.
+Note: IDs for The Hundred, ICC Internationals, Women's competitions are best-guess.
+Day-based auto-discovery catches any games from competitions with unknown IDs.
