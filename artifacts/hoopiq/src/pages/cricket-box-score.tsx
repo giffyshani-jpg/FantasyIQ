@@ -11,6 +11,7 @@ import { MobileLayout } from "../components/layout";
 import { fetchCricketGame } from "../api";
 import type { CricketGame, CricketInnings, CricketPlayer } from "../lib/cricket-types";
 import { calculateCricketFantasyPoints, getScoringProfile } from "../lib/cricket-scoring";
+import { MatchIntelligenceCard } from "../components/cricket-match-intelligence";
 
 // ─── Icons ─────────────────────────────────────────────────────────────────
 
@@ -368,6 +369,8 @@ export default function CricketBoxScore() {
         {!loading && game && (
           <>
             <MatchHeader game={game} />
+
+            <MatchIntelligenceCard game={game} />
 
             {game.innings.length === 0 ? (
               <NoScorecard game={game} />
