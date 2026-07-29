@@ -750,10 +750,25 @@ export default function FantasyOptimizer() {
       }
     }
 
+    const finalIds = picked.slice(0, LINEUP_SIZE);
+
+    // Rank picked players by baseFpts descending to auto-assign C and VC.
+    const pickedPlayers = finalIds
+      .map((id) => pool.find((p) => p.id === id)!)
+      .filter(Boolean)
+      .sort((a, b) =>
+        b.baseFpts !== a.baseFpts
+          ? b.baseFpts - a.baseFpts
+          : a.name.localeCompare(b.name),
+      );
+
+    const autoCaptainId = pickedPlayers[0]?.id ?? null;
+    const autoVCId = pickedPlayers[1]?.id ?? null;
+
     applyLineup({
-      playerIds: picked.slice(0, LINEUP_SIZE),
-      captainId: null,
-      viceCaptainId: null,
+      playerIds: finalIds,
+      captainId: autoCaptainId,
+      viceCaptainId: autoVCId,
     });
   }
 
