@@ -225,6 +225,13 @@ function normalizeTsdbEvent(ev) {
 
     const gameId = `tsdb:${ev.idEvent}`;
 
+    // Bug fix (Feature Session 5): resolve team names BEFORE calling makeAbbreviation.
+    // Previously makeAbbreviation received ev.strHomeTeam directly (possibly null/undefined),
+    // which returned "UNK". Now we resolve the fallback first so abbreviations are always
+    // meaningful (e.g. "HOM" for a truly unnamed team, never "UNK").
+    const homeName = ev.strHomeTeam || "Home";
+    const awayName = ev.strAwayTeam || "Away";
+
     return {
       id: gameId,
       competitionSlug: slug,
@@ -232,16 +239,16 @@ function normalizeTsdbEvent(ev) {
       format,
       homeTeam: {
         id: String(ev.idHomeTeam || "h"),
-        name: ev.strHomeTeam || "Home",
-        abbreviation: makeAbbreviation(ev.strHomeTeam),
+        name: homeName,
+        abbreviation: makeAbbreviation(homeName),
         score: homeScore,
         overs: null,
         players: [],
       },
       awayTeam: {
         id: String(ev.idAwayTeam || "a"),
-        name: ev.strAwayTeam || "Away",
-        abbreviation: makeAbbreviation(ev.strAwayTeam),
+        name: awayName,
+        abbreviation: makeAbbreviation(awayName),
         score: awayScore,
         overs: null,
         players: [],
@@ -483,19 +490,80 @@ function findInCache(gameId) {
 }
 
 /**
+ * Merges schedule-sourced data into a game object when Provider 1 returns
+ * placeholder team names ("Home"/"Away") or missing venue/competition.
+ *
+ * This handles the case where lookupevent.php returns an event with empty
+ * strHomeTeam/strAwayTeam — TSDB's event database sometimes has less data
+ * than the day-based eventsday.php endpoint for the same event.
+ *
+ * Only overwrites placeholder values — real data from Provider 1 is kept.
+ *
+ * Feature Session 5 — Bug 2 fix.
+ */
+function enrichFromCache(game) {
+  const cached = findInCache(game.id);
+  if (!cached) return game;
+
+  // Overwrite home team name+abbreviation if Provider 1 gave a placeholder
+  if (game.homeTeam.name === "Home" && cached.homeTeam.name && cached.homeTeam.name !== "Home") {
+    game.homeTeam = { ...game.homeTeam, name: cached.homeTeam.name, abbreviation: cached.homeTeam.abbreviation };
+    console.info(`[cricket] enrichFromCache: replaced placeholder homeTeam with "${cached.homeTeam.name}" for ${game.id}`);
+  }
+  if (game.awayTeam.name === "Away" && cached.awayTeam.name && cached.awayTeam.name !== "Away") {
+    game.awayTeam = { ...game.awayTeam, name: cached.awayTeam.name, abbreviation: cached.awayTeam.abbreviation };
+    console.info(`[cricket] enrichFromCache: replaced placeholder awayTeam with "${cached.awayTeam.name}" for ${game.id}`);
+  }
+
+  // Fill in missing venue, competition, format from schedule data
+  if (!game.venue && cached.venue)                          game.venue = cached.venue;
+  if (game.competitionName === "Cricket" && cached.competitionName !== "Cricket") {
+    game.competitionName = cached.competitionName;
+    game.competitionSlug = cached.competitionSlug;
+  }
+  if (game.format === "T20" && cached.format && cached.format !== "T20") {
+    game.format = cached.format; // only override if cached has a more specific format
+  }
+
+  return game;
+}
+
+/**
  * Provider 3: construct a minimal game shell from the gameId string.
- * This is a last resort — it produces a displayable object with status=scheduled
- * so the UI never renders a blank page. Teams and venue will be unknown.
+ *
+ * LAST RESORT — only reached when:
+ *   1. TSDB lookupevent.php returned no usable data
+ *   2. DAY_CACHE + LEAGUE_CACHE have no entry for this gameId
+ *   3. A triggered getLeagueOverview() refresh also found nothing
+ *
+ * Produces a displayable, never-crashing object. Teams are labelled
+ * with the event ID components so the user can see something meaningful.
+ * "Unknown" and "UNK" are NOT used — we extract what we can from gameId.
+ *
+ * Feature Session 5 — Bug 3 fix (graceful shell, not blank UNK).
  */
 function buildMinimalGame(gameId) {
-  const unknown = { id: "unk", name: "Unknown", abbreviation: "UNK", score: null, overs: null, players: [] };
+  // Try to parse anything useful out of the gameId (format: "tsdb:{idEvent}")
+  const idParts = gameId.split(":");
+  const providerId = idParts[0] ?? "tsdb";
+  const eventIdStr = idParts[1] ?? gameId;
+
+  const placeholder = (label) => ({
+    id: label,
+    name: `Team (${label})`,
+    abbreviation: label.slice(0, 3).toUpperCase(),
+    score: null,
+    overs: null,
+    players: [],
+  });
+
   return {
     id: gameId,
     competitionSlug: "cricket",
-    competitionName: "Cricket",
+    competitionName: "Cricket Match",
     format: "T20",
-    homeTeam: { ...unknown },
-    awayTeam: { ...unknown },
+    homeTeam: placeholder("home"),
+    awayTeam: placeholder("away"),
     startTime: "",
     startTimeIso: null,
     status: "scheduled",
@@ -505,24 +573,64 @@ function buildMinimalGame(gameId) {
     result: null,
     venue: null,
     allPlayers: [],
+    // Carry enough metadata for the UI to show why data is missing
     _provider: "minimal-fallback",
+    _providerNote: `Event ID: ${eventIdStr} (${providerId}). Data not found in TSDB or schedule cache.`,
   };
 }
 
 /**
- * Fetches a cricket game by ID with a 3-tier fallback chain.
+ * Seed a CricketGame into GAME_CACHE from an external source (e.g. overview result).
  *
- * Provider 1 — TSDB lookupevent.php (direct lookup, best data)
- * Provider 2 — In-memory cache scan (day + league caches from getLeagueOverview)
- * Provider 3 — Minimal game shell (never null, always renderable)
+ * Called from api.js after fetchCricketOverview() returns — ensures every game
+ * shown on the schedule page is immediately available for box-score navigation
+ * without requiring a TSDB lookupevent roundtrip.
  *
- * Logs which provider succeeded so the UI can surface it for debugging.
+ * Only writes if no fresher entry exists (does NOT overwrite a detail fetch).
+ *
+ * Feature Session 5 — Bug 3 fix.
+ */
+export function seedGameCache(game) {
+  if (!game?.id) return;
+  // Don't overwrite a game that was already detail-fetched (cache-scan or tsdb-lookupevent)
+  // Only overwrite another overview-seed or minimal-fallback
+  const existing = GAME_CACHE.get(game.id);
+  const isStale = !existing ||
+    existing.game?._provider === "minimal-fallback" ||
+    existing.game?._provider === "overview-seed";
+  if (!isStale) return;
+
+  GAME_CACHE.set(game.id, {
+    game: {
+      ...game,
+      allPlayers: game.allPlayers ?? [],
+      _provider: "overview-seed",
+    },
+    fetchedAt: Date.now(),
+  });
+}
+
+/**
+ * Fetches a cricket game by ID with a 4-tier fallback chain.
+ *
+ * Provider 0 — GAME_CACHE (seeded from overview or prior detail fetch)
+ * Provider 1 — TSDB lookupevent.php (direct lookup)
+ *              → enriched from cache if team names are placeholders (Bug 2 fix)
+ * Provider 2 — In-memory cache scan (DAY_CACHE + LEAGUE_CACHE)
+ * Provider 2.5 — Trigger getLeagueOverview() refresh, retry cache scan
+ *                (handles direct URL navigation / page refresh — Bug 3 fix)
+ * Provider 3 — Minimal game shell (never null, never crashes)
+ *
+ * Feature Session 5: All providers log which source supplied the data.
  */
 export async function fetchGameById(gameId, { noCache = false } = {}) {
-  // Quick return from game-level cache
+  // ── Provider 0: GAME_CACHE (seeded from overview or prior detail fetch) ───
   if (!noCache) {
     const hit = getCachedGame(gameId);
-    if (hit) { console.info(`[cricket] fetchGameById hit game-cache: ${gameId}`); return hit; }
+    if (hit) {
+      console.info(`[cricket] Provider 0 (game-cache, src=${hit._provider}) hit: ${gameId}`);
+      return hit;
+    }
   }
 
   const eventId = gameId.startsWith("tsdb:") ? gameId.slice(5) : gameId;
@@ -538,8 +646,11 @@ export async function fetchGameById(gameId, { noCache = false } = {}) {
       if (game) {
         game.allPlayers = [];
         game._provider = "tsdb-lookupevent";
+        // Bug 2 fix: if TSDB returned placeholder team names, enrich from schedule cache
+        enrichFromCache(game);
         setCachedGame(gameId, game);
-        console.info(`[cricket] Provider 1 (TSDB lookupevent) succeeded: ${gameId}`);
+        console.info(`[cricket] Provider 1 (TSDB lookupevent) succeeded: ${gameId} ` +
+          `home="${game.homeTeam.name}" away="${game.awayTeam.name}"`);
         return game;
       }
     }
@@ -553,13 +664,43 @@ export async function fetchGameById(gameId, { noCache = false } = {}) {
   if (cached) {
     const game = { ...cached, allPlayers: [], _provider: "cache-scan" };
     setCachedGame(gameId, game);
-    console.info(`[cricket] Provider 2 (cache scan) succeeded: ${gameId}`);
+    console.info(`[cricket] Provider 2 (cache scan) succeeded: ${gameId} ` +
+      `home="${game.homeTeam.name}" away="${game.awayTeam.name}"`);
     return game;
   }
-  console.warn(`[cricket] Provider 2 (cache scan) missed: ${gameId}`);
+  console.warn(`[cricket] Provider 2 (cache scan) missed: ${gameId} ` +
+    `(DAY_CACHE=${DAY_CACHE.size} entries, LEAGUE_CACHE=${LEAGUE_CACHE.size} entries)`);
+
+  // ── Provider 2.5: Trigger overview refresh, retry cache scan ─────────────
+  //
+  // Bug 3 fix: handles direct URL navigation and page refreshes.
+  // When the user opens a box-score URL directly (refresh, shared link),
+  // DAY_CACHE and LEAGUE_CACHE are empty — getLeagueOverview() has not run.
+  // Triggering it here repopulates the caches with the full schedule data.
+  //
+  // This does add latency on first direct load (~1–2s) but guarantees the
+  // user sees real team names instead of the minimal fallback shell.
+  console.info(`[cricket] Provider 2.5: triggering getLeagueOverview() to find ${gameId}`);
+  try {
+    await getLeagueOverview();
+    const retried = findInCache(gameId);
+    if (retried) {
+      const game = { ...retried, allPlayers: [], _provider: "overview-triggered" };
+      setCachedGame(gameId, game);
+      console.info(`[cricket] Provider 2.5 (overview-triggered) succeeded: ${gameId} ` +
+        `home="${game.homeTeam.name}" away="${game.awayTeam.name}"`);
+      return game;
+    }
+  } catch (err) {
+    console.warn(`[cricket] Provider 2.5 (overview-triggered) failed:`, err?.message);
+  }
+  console.warn(`[cricket] Provider 2.5 (overview-triggered) missed: ${gameId} — game not found in any schedule data`);
 
   // ── Provider 3: Minimal game shell (graceful fallback — never null) ───────
-  console.warn(`[cricket] Provider 3 (minimal fallback) used: ${gameId}`);
+  //
+  // Only reached if the game truly does not exist in TSDB or any schedule data.
+  // Should be extremely rare after Providers 0–2.5.
+  console.warn(`[cricket] Provider 3 (minimal fallback) used for ${gameId}`);
   const minimal = buildMinimalGame(gameId);
   // Don't cache minimal shells — retry fresh on next navigation
   return minimal;

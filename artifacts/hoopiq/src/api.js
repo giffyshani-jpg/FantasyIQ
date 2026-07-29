@@ -321,7 +321,33 @@ export async function fetchCricketOverview() {
 
   const promise = cricketProvider.getLeagueOverview().then((result) => {
     OVERVIEW_IN_FLIGHT.delete(key);
-    if (result) setOverviewCache(key, result);
+    if (result) {
+      setOverviewCache(key, result);
+      // Feature Session 5 — Bug 3 fix:
+      // Seed all schedule games into GAME_CACHE immediately so that any game
+      // shown on the schedule page is available for box-score navigation without
+      // requiring a TSDB lookupevent roundtrip.
+      //
+      // This prevents "UNK vs UNK" / "Unknown" in two scenarios:
+      //   1. Normal SPA navigation: overview loads → games seeded → box-score
+      //      opens → Provider 0 (GAME_CACHE) hits with full schedule data.
+      //   2. Direct URL navigation: Provider 2.5 calls getLeagueOverview() →
+      //      this seed runs → Provider 2 retry finds the game in DAY_CACHE.
+      const allGames = [
+        ...(result.live ?? []),
+        ...(result.upcoming ?? []),
+        ...(result.recentCompleted ?? []),
+        ...(result.lastPlayed ? [result.lastPlayed] : []),
+      ];
+      let seeded = 0;
+      for (const game of allGames) {
+        cricketProvider.seedGameCache(game);
+        seeded++;
+      }
+      if (seeded > 0) {
+        console.info(`[api] fetchCricketOverview: seeded ${seeded} games into GAME_CACHE`);
+      }
+    }
     return result;
   }).catch((err) => {
     OVERVIEW_IN_FLIGHT.delete(key);
