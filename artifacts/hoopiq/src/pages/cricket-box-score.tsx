@@ -213,13 +213,14 @@ function BattingCard({
         </span>
       </div>
 
-      {/* Header row */}
-      <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-1 px-4 py-1.5 border-b border-border/20">
+      {/* Header row — R | B | 4s | 6s | SR | FPTS */}
+      <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto] gap-1 px-4 py-1.5 border-b border-border/20">
         <span className="text-[10px] font-semibold text-muted-foreground/60">Batter</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">R</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">B</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">4s</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">6s</span>
+        <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-9">SR</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-12">FPTS</span>
       </div>
 
@@ -229,9 +230,10 @@ function BattingCard({
         const notOut = !bat.dismissed;
         const aiRating = ratings.get(p.id);
         const badge = aiRating ? computePlayerBadge(aiRating, p) : null;
+        const sr = bat.strikeRate !== null ? bat.strikeRate.toFixed(1) : "—";
         return (
           <div key={p.id}
-            className={`grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-1 px-4 py-2.5 items-start ${i < players.length - 1 ? "border-b border-border/15" : ""}`}>
+            className={`grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto] gap-1 px-4 py-2.5 items-start ${i < players.length - 1 ? "border-b border-border/15" : ""}`}>
             {/* Name + AI Rating + Badge */}
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
@@ -254,6 +256,9 @@ function BattingCard({
             <span className="text-xs text-muted-foreground text-right w-7">{bat.balls}</span>
             <span className="text-xs text-muted-foreground text-right w-7">{bat.fours}</span>
             <span className="text-xs text-muted-foreground text-right w-7">{bat.sixes}</span>
+            <span className={`text-xs text-right w-9 ${bat.strikeRate !== null && bat.strikeRate >= 150 ? "text-green-400" : bat.strikeRate !== null && bat.strikeRate < 70 ? "text-red-400/70" : "text-muted-foreground"}`}>
+              {sr}
+            </span>
             <span className={`text-xs font-bold text-right w-12 ${pts.total > 0 ? "text-green-400" : pts.total < 0 ? "text-red-400" : "text-muted-foreground/50"}`}>
               {pts.total > 0 ? "+" : ""}{pts.total.toFixed(1)}
             </span>
@@ -286,13 +291,14 @@ function BowlingCard({
         </span>
       </div>
 
-      {/* Header row */}
-      <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-1 px-4 py-1.5 border-b border-border/20">
+      {/* Header row — O | M | R | W | Econ | FPTS */}
+      <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto] gap-1 px-4 py-1.5 border-b border-border/20">
         <span className="text-[10px] font-semibold text-muted-foreground/60">Bowler</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">O</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">M</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">R</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">W</span>
+        <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-9">Econ</span>
         <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-12">FPTS</span>
       </div>
 
@@ -302,9 +308,10 @@ function BowlingCard({
         const pts = calculateCricketFantasyPoints(p.stats, profile);
         const aiRating = ratings.get(p.id);
         const badge = aiRating ? computePlayerBadge(aiRating, p) : null;
+        const econ = bowl.economy !== null ? bowl.economy.toFixed(2) : "—";
         return (
           <div key={p.id}
-            className={`grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-1 px-4 py-2.5 items-start ${i < players.length - 1 ? "border-b border-border/15" : ""}`}>
+            className={`grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto] gap-1 px-4 py-2.5 items-start ${i < players.length - 1 ? "border-b border-border/15" : ""}`}>
             {/* Name + AI Rating + Badge */}
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
@@ -323,8 +330,86 @@ function BowlingCard({
             <span className={`text-sm font-bold text-right w-7 ${bowl.wickets >= 3 ? "text-yellow-400" : bowl.wickets > 0 ? "text-orange-400" : "text-foreground"}`}>
               {bowl.wickets}
             </span>
+            <span className={`text-xs text-right w-9 ${bowl.economy !== null && bowl.economy < 6 ? "text-green-400" : bowl.economy !== null && bowl.economy > 10 ? "text-red-400/70" : "text-muted-foreground"}`}>
+              {econ}
+            </span>
             <span className={`text-xs font-bold text-right w-12 ${pts.total > 0 ? "text-green-400" : pts.total < 0 ? "text-red-400" : "text-muted-foreground/50"}`}>
               {pts.total > 0 ? "+" : ""}{pts.total.toFixed(1)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Fielding scorecard ────────────────────────────────────────────────────
+//
+// Shows players with any fielding contribution (catches / stumpings / run-outs).
+// Displays fantasy points from the fielding portion only.
+
+function FieldingCard({
+  innings,
+  profile,
+}: {
+  innings: CricketInnings;
+  profile: ReturnType<typeof getScoringProfile>;
+}) {
+  // Gather all players from both teams in this innings who have fielding stats.
+  const allPlayers = [
+    ...innings.battingTeam.players,
+    ...innings.bowlingTeam.players,
+  ];
+  // Deduplicate by id.
+  const seen = new Set<string>();
+  const players = allPlayers.filter((p) => {
+    if (seen.has(p.id)) return false;
+    seen.add(p.id);
+    const f = p.stats?.fielding;
+    return f && (f.catches > 0 || f.stumpings > 0 || f.runOutsDirect > 0 || f.runOutsIndirect > 0);
+  });
+
+  if (players.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-border/40 overflow-hidden bg-card">
+      <div className="px-4 py-2.5 bg-muted/30 border-b border-border/30">
+        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          Fielding
+        </span>
+      </div>
+
+      {/* Header row — C | St | RO | FPTS */}
+      <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-1 px-4 py-1.5 border-b border-border/20">
+        <span className="text-[10px] font-semibold text-muted-foreground/60">Fielder</span>
+        <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">C</span>
+        <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">St</span>
+        <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-7">RO</span>
+        <span className="text-[10px] font-semibold text-muted-foreground/60 text-right w-12">FPTS</span>
+      </div>
+
+      {players.map((p, i) => {
+        const f = p.stats.fielding!;
+        const pts = calculateCricketFantasyPoints(p.stats, profile);
+        const runOuts = f.runOutsDirect + f.runOutsIndirect;
+        return (
+          <div key={p.id}
+            className={`grid grid-cols-[1fr_auto_auto_auto_auto] gap-1 px-4 py-2.5 items-center ${i < players.length - 1 ? "border-b border-border/15" : ""}`}>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground truncate">{p.name}</p>
+              <p className="text-[10px] text-muted-foreground/50">{p.teamAbbreviation}</p>
+            </div>
+            <span className={`text-sm font-bold text-right w-7 ${f.catches > 0 ? "text-blue-300" : "text-muted-foreground/40"}`}>
+              {f.catches}
+            </span>
+            <span className={`text-sm font-bold text-right w-7 ${f.stumpings > 0 ? "text-purple-300" : "text-muted-foreground/40"}`}>
+              {f.stumpings}
+            </span>
+            <span className={`text-sm font-bold text-right w-7 ${runOuts > 0 ? "text-orange-300" : "text-muted-foreground/40"}`}>
+              {runOuts}
+            </span>
+            <span className={`text-xs font-bold text-right w-12 ${pts.fielding > 0 ? "text-green-400" : "text-muted-foreground/50"}`}>
+              +{pts.fielding.toFixed(1)}
             </span>
           </div>
         );
@@ -359,6 +444,7 @@ function InningsSection({
       </div>
       <BattingCard innings={innings} profile={profile} ratings={ratings} />
       <BowlingCard innings={innings} profile={profile} ratings={ratings} />
+      <FieldingCard innings={innings} profile={profile} />
     </div>
   );
 }
@@ -502,10 +588,13 @@ function NoScorecard({ game }: { game: CricketGame }) {
           </div>
         )}
 
-        {isFinal && !game.result && (
+        {isFinal && (
           <div className="mt-2 pt-2 border-t border-border/20">
-            <p className="text-[10px] text-muted-foreground/40">
-              Detailed scorecard not available — TheSportsDB free tier provides results only
+            <p className="text-sm font-semibold text-amber-300/80">
+              Player statistics unavailable from current provider.
+            </p>
+            <p className="text-[10px] text-muted-foreground/40 mt-1">
+              TheSportsDB free tier returns match results only — no detailed scorecard data.
             </p>
           </div>
         )}
