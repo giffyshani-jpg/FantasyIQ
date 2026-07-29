@@ -2,7 +2,67 @@
 
 ## Latest Session Summary
 
-Session 6 — Tasks 1, 2, 3 complete — 2026-07-29.
+Session 7 — Task 1 (Football Foundation Audit) complete — 2026-07-29.
+Tasks 2 (Football Optimizer) and 3 (Multi-Sport Stability) in progress this session.
+
+---
+
+## Session 7 Changes
+
+### Task 1 — Football Foundation Audit + Fix
+**File:** `artifacts/hoopiq/src/pages/football.tsx`
+**Commit:** `36f7f8d`
+
+**Root cause:** `football.tsx` had a `setTimeout` stub in `useEffect` that never called
+the provider. `fetchFootballOverview()` was fully wired in `api.js` but the page
+discarded it entirely.
+
+**Fix:**
+```typescript
+// BEFORE (broken stub):
+useEffect(() => {
+  const t = setTimeout(() => {
+    setStatus({ loaded: true, error: null, competitions: SEEDED_COMPETITIONS });
+  }, 400);
+  return () => clearTimeout(t);
+}, []);
+
+// AFTER (real provider call):
+const load = useCallback(async () => {
+  setState(s => ({ ...s, loading: true, error: null }));
+  const overview = await fetchFootballOverview() as FootballOverview;
+  setState({ overview, loading: false, error: null, lastRefreshed: Date.now() });
+}, []);
+
+useEffect(() => { void load(); }, [load]);
+```
+
+**New interfaces added to football.tsx (local, not yet a shared lib):**
+- `FootballTeam` — `{ id, name, abbreviation, score: string|null }`
+- `FootballGame` — `{ id, leagueId, leagueName, homeTeam, awayTeam, startTimeIso, status, venue, result, league }`
+- `FootballOverview` — `{ live: FootballGame[], upcoming: FootballGame[], lastPlayed: FootballGame|null }`
+- `FootballPageState` — `{ overview, loading, error, lastRefreshed }`
+
+**New UI sections:**
+- `MatchCard` — renders home vs away, score (or kickoff time), venue, league name, live pill
+- `StatusPill` — animated green dot for LIVE, "FT" muted for final
+- Live Now / Upcoming / Recent Result sections
+- Refresh button
+- Provider error display
+
+**Gap analysis (not fixed — requires Task 2):**
+
+| Gap | Detail |
+|-----|--------|
+| `football-types.ts` | Missing — no shared `FootballPlayer`, `FootballLineup` |
+| `football-scoring.ts` | Missing — no fantasy points engine |
+| Match detail route | `/football/:leagueId/game/:id` does not exist |
+| Optimizer route | `/football/:leagueId/game/:id/optimizer` does not exist |
+| `getPlayerGameLog()` | Permanent stub returning `[]` |
+| `getTeamSchedule()` | Permanent stub returning `[]` |
+| Standings | TSDB `lookuptable.php` not wired |
+| Lineups / player stats | Not in provider |
+| Tab pattern (Recent/Today/Tomorrow) | Not on football page |
 
 ---
 
@@ -12,13 +72,8 @@ Session 6 — Tasks 1, 2, 3 complete — 2026-07-29.
 **File:** `artifacts/hoopiq/src/pages/fantasy-optimizer.tsx`
 **Commit:** `88f0198`
 
-**Problem:** `handleAutoPick()` hard-coded `captainId: null` and `viceCaptainId: null` after picking 8 players. Captain and VC were never assigned.
-
 **Fix (lines ~753–772):**
 ```javascript
-const finalIds = picked.slice(0, LINEUP_SIZE);
-
-// Rank picked players by baseFpts descending to auto-assign C and VC.
 const pickedPlayers = finalIds
   .map((id) => pool.find((p) => p.id === id)!)
   .filter(Boolean)
@@ -31,21 +86,13 @@ const pickedPlayers = finalIds
 const autoCaptainId = pickedPlayers[0]?.id ?? null;
 const autoVCId = pickedPlayers[1]?.id ?? null;
 
-applyLineup({
-  playerIds: finalIds,
-  captainId: autoCaptainId,
-  viceCaptainId: autoVCId,
-});
+applyLineup({ playerIds: finalIds, captainId: autoCaptainId, viceCaptainId: autoVCId });
 ```
-
-Works for both the greedy-within-budget path and the no-credits path. Total FPTS is correct because `applyLineup` triggers `totalEffectiveFpts` which already applies `fptsMultiplier(role)` (×2.0 captain, ×1.5 VC).
 
 ---
 
 ### Task 2 — Cricket Optimizer Football Cleanup
 **Status:** Already complete from Session 4 (`878b817`). No action needed.
-
-Verified: no football items exist anywhere in `cricket-optimizer.tsx`. Format is auto-detected via `DetectedFormatCard`. Cricket-only roles (BAT/BOWL/ALL/WK) and cricket-only scoring (`calculateCricketFantasyPoints`).
 
 ---
 
@@ -53,52 +100,22 @@ Verified: no football items exist anywhere in `cricket-optimizer.tsx`. Format is
 **File:** `artifacts/hoopiq/src/pages/cricket-box-score.tsx`
 **Commit:** `31b6b57`
 
-#### BattingCard — new Strike Rate column
-- Added `SR` column header (7th column, `w-9`)
-- Grid changed: `grid-cols-[1fr_auto_auto_auto_auto_auto_auto]`
-- Value: `bat.strikeRate.toFixed(1)` or `"—"` if null
-- Colour: green ≥150, red <70, muted otherwise
-
-#### BowlingCard — new Economy column
-- Added `Econ` column header (7th column, `w-9`)  
-- Grid changed: `grid-cols-[1fr_auto_auto_auto_auto_auto_auto]`
-- Value: `bowl.economy.toFixed(2)` or `"—"` if null
-- Colour: green <6.00, red >10.00, muted otherwise
-
-#### New FieldingCard component
-- Gathers players from both batting+bowling teams, deduplicates by id
-- Only renders when ≥1 player has catches/stumpings/runOuts
-- Columns: Fielder | C | St | RO | FPTS
-- RO = runOutsDirect + runOutsIndirect
-- FPTS shows `pts.fielding` from `calculateCricketFantasyPoints()` breakdown
-- No fabrication — all values come from `CricketFieldingStats`
-
-#### InningsSection — wires in FieldingCard
-```tsx
-<BattingCard innings={innings} profile={profile} ratings={ratings} />
-<BowlingCard innings={innings} profile={profile} ratings={ratings} />
-<FieldingCard innings={innings} profile={profile} />
-```
-
-#### NoScorecard — updated message for completed matches
-**Before:** "Detailed scorecard not available — TheSportsDB free tier provides results only"
-**After:**
-```
-Player statistics unavailable from current provider.
-TheSportsDB free tier returns match results only — no detailed scorecard data.
-```
-The "Player statistics unavailable" line uses `text-sm font-semibold text-amber-300/80` so it's prominent and clearly readable.
+- BattingCard: added SR column (green ≥150, red <70)
+- BowlingCard: added Econ column (green <6.00, red >10.00)
+- New FieldingCard: C / St / RO / FPTS (fielding only, no fabrication)
+- InningsSection: renders FieldingCard after batting/bowling
+- NoScorecard: message updated to "Player statistics unavailable from current provider."
 
 ---
 
-## Architecture (as of Session 6)
+## Architecture (as of Session 7)
 
 ### Routing
 ```
 /              → Home (3 sport hub cards)
 /basketball    → BasketballPage (NBA + WNBA sub-sections)
 /cricket       → CricketSchedule (Recent / Today / Tomorrow tabs)
-/football      → FootballPage (coming soon, infrastructure ready)
+/football      → FootballPage (live scores wired; optimizer TBD — Task 2)
 /:league       → LeagueGames (nba, wnba, nbl, nznbl, fiba, nba-summer)
 /:league/game/:id              → BoxScore
 /:league/game/:id/optimizer    → FantasyOptimizer (basketball)
@@ -107,6 +124,17 @@ The "Player statistics unavailable" line uses `text-sm font-semibold text-amber-
 /:league/player/:playerId      → PlayerDetail
 /cricket/:competition/game/:id             → CricketBoxScore
 /cricket/:competition/game/:id/optimizer   → CricketOptimizer
+```
+
+### Football Provider Architecture
+```
+Provider: TheSportsDB (free, CORS-open)
+Endpoint: eventsday.php?d=YYYY-MM-DD&s=Soccer
+Status map: NS→scheduled, FT/AET/PEN→final, 1H/2H/HT/ET/live→in_progress
+ID format: "tsdb-football:{idEvent}"
+Cache: DAY_CACHE (3 min TTL) in providers/football.js
+api.js: fetchFootballOverview() — cached 2 min, safeCall-wrapped
+api.js: fetchFootballGamesByDate(dateStr) — safeCall-wrapped
 ```
 
 ### Match ID Format (cricket)
@@ -128,14 +156,6 @@ Provider 2.5: getLeagueOverview() refresh → retry findInCache()
 Provider 3: buildMinimalGame() — "Team (home)"/"Team (away)" + _providerNote
 ```
 
-### seedGameCache — Overview Seeding (Session 5)
-```
-fetchCricketOverview() [api.js]
-  → for each game: cricketProvider.seedGameCache(game)
-     → GAME_CACHE.set(game.id, { game: {..., _provider:"overview-seed"}, fetchedAt })
-     → Skips if existing entry has _provider NOT in ["minimal-fallback", "overview-seed"]
-```
-
 ### File Layout
 ```
 artifacts/hoopiq/
@@ -144,7 +164,8 @@ artifacts/hoopiq/
     App.tsx                   — routes; cricket routes MUST come before /:league catch-all
     providers/
       cricket.js              — TheSportsDB; 4-tier fetchGameById; seedGameCache export
-      espn.js / nba.js / wnba.js / nbadotcom.js / thesportsdb.js / nznbl.js / football.js
+      football.js             — TheSportsDB Soccer; getLeagueOverview/getGame/getGamesByDate
+      espn.js / nba.js / wnba.js / nbadotcom.js / thesportsdb.js / nznbl.js
     lib/
       date-utils.ts           ← single source of truth for ALL local-timezone helpers
       cricket-types.ts        — CricketGame, CricketPlayer, CricketInnings, etc.
@@ -152,11 +173,14 @@ artifacts/hoopiq/
       cricket-ai-intelligence.ts  ← AI Match Intelligence + weather heuristic
       ai-player-rating.ts     ← per-player AI rating + PlayerBadge classification
       provider-manager.ts     — createProviderManager() — not yet wired into api.js
+      [MISSING] football-types.ts   ← needed for Task 2
+      [MISSING] football-scoring.ts ← needed for Task 2
     pages/
       cricket-schedule.tsx    — /cricket — Recent/Today/Tomorrow tabs
-      cricket-box-score.tsx   — BattingCard(SR) + BowlingCard(Econ) + FieldingCard + unavailable msg
-      cricket-optimizer.tsx   — DetectedFormatCard + cricket-only scoring + Auto-Pick with C/VC
-      fantasy-optimizer.tsx   — basketball optimizer; Auto Pick assigns C + VC automatically
+      cricket-box-score.tsx   — BattingCard(SR) + BowlingCard(Econ) + FieldingCard
+      cricket-optimizer.tsx   — DetectedFormatCard + cricket-only scoring + Auto-Pick
+      fantasy-optimizer.tsx   — basketball optimizer; Auto Pick assigns C + VC
+      football.tsx            — /football — live scores wired; optimizer TBD
     components/
       cricket-match-intelligence.tsx  ← AI Insights Panel + Captain/VC + Estimated weather
 ```
@@ -183,6 +207,8 @@ artifacts/hoopiq/
 18. **`enrichFromCache(game)` is called after Provider 1 normalization** in `fetchGameById()` — do not remove.
 19. **`handleAutoPick()` assigns C + VC** — `autoCaptainId = pickedPlayers[0]?.id`, `autoVCId = pickedPlayers[1]?.id`. Never set these to null in Auto Pick.
 20. **`FieldingCard` does NOT fabricate** — only renders when real `CricketFieldingStats` exists; FPTS from `pts.fielding` breakdown only.
+21. **`football.tsx` must call `fetchFootballOverview()`** — never revert to the setTimeout stub. The provider is fully wired.
+22. **Football scoring is SEPARATE from basketball and cricket** — when `football-scoring.ts` is created (Task 2), it must not import or call cricket/basketball scoring functions.
 
 ### Dev Commands
 ```bash

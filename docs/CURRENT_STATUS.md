@@ -1,6 +1,6 @@
 # FantasyIQ — Current Status
 
-**Last updated:** 2026-07-29 (Session 6 — Tasks 1, 2, 3 complete)
+**Last updated:** 2026-07-29 (Session 7 — Task 1 complete, Tasks 2 & 3 in progress)
 **HEAD:** (see commits below)
 **Repo:** https://github.com/giffyshani-jpg/FantasyIQ
 
@@ -20,15 +20,15 @@ Note: `PORT` and `BASE_PATH` are **required** for both dev and build — vite.co
 - Home page — 3-sport hub (Cricket / Basketball / Football)
 - Basketball page — NBA + WNBA with **Recent / Today / Tomorrow** tabs (no Day After)
   - Recent tab: `findRecentDate()` walks backwards up to 30 days
-- **Basketball optimizer — Auto Pick now assigns Captain and Vice Captain automatically** ✅ Task 1 (`88f0198`)
+- **Basketball optimizer — Auto Pick now assigns Captain and Vice Captain automatically** ✅ Session 6 (`88f0198`)
 - Cricket schedule — **Recent / Today / Tomorrow** tabs (no Day After)
   - Recent tab: scans `overview.recentCompleted`, finds most-recent date
 - Cricket box score → back button navigates to `/cricket` ✅ (no 404)
 - Cricket optimizer → back-nav "Match Details" → returns to cricket box score ✅
-- **Cricket optimizer — no football items; format auto-detected; cricket-only scoring** ✅ Task 2 (done in Session 4, `878b817`)
-- **Cricket box score — SR, Economy, Fielding card, fantasy points for completed matches** ✅ Task 3
-- **Cricket box score — "Player statistics unavailable from current provider." shown when no stats** ✅ Task 3
-- Football page — infrastructure only
+- **Cricket optimizer — no football items; format auto-detected; cricket-only scoring** ✅ Session 4 (`878b817`)
+- **Cricket box score — SR, Economy, Fielding card, fantasy points for completed matches** ✅ Session 6 (`31b6b57`)
+- **Cricket box score — "Player statistics unavailable from current provider." shown when no stats** ✅ Session 6
+- **Football page — live scores, upcoming matches, recent results from TheSportsDB** ✅ Session 7 (`36f7f8d`)
 - All individual league pages (NBA, WNBA, NBL, NZNBL, FIBA, NBA Summer)
 - Box score, optimizer, play-by-play, player comparison, player detail
 - AI Fantasy Coach (12 named picks with data-backed explanations)
@@ -37,57 +37,85 @@ Note: `PORT` and `BASE_PATH` are **required** for both dev and build — vite.co
 
 ---
 
-## Session 6 — Tasks 1, 2, 3 (2026-07-29)
+## Session 7 — Football Foundation Audit (2026-07-29)
 
-### Task 1 — Basketball Auto Pick Fix
-**Commit:** `88f0198`
+### Task 1 — Football Foundation Audit + Fix
+**Commit:** `36f7f8d`
 
-**Problem:** `handleAutoPick()` hard-coded `captainId: null` and `viceCaptainId: null`.
+**Audit findings:**
 
-**Fix:** After picking 8 players, sort by `baseFpts` descending:
-- `captainId` = highest FPTS picked player
-- `viceCaptainId` = second highest FPTS picked player
+| Layer | Status |
+|-------|--------|
+| `providers/football.js` | ✅ Functional — TSDB `eventsday.php?s=Soccer` wired |
+| `api.js` exports | ✅ `fetchFootballOverview()`, `fetchFootballGamesByDate()` wired + safeCall |
+| `football.tsx` (page) | ❌ BROKEN — used `setTimeout` stub, never called provider |
+| Football types lib | ❌ MISSING — no `football-types.ts` |
+| Football scoring engine | ❌ MISSING — no `football-scoring.ts` |
+| Match detail page | ❌ MISSING — no `/football/:leagueId/game/:id` route |
+| Optimizer page | ❌ MISSING — Task 2 |
+| `getPlayerGameLog()` | ❌ STUB — always returns `[]` |
+| `getTeamSchedule()` | ❌ STUB — always returns `[]` |
+| Lineups / stats | ❌ NOT IMPLEMENTED |
+| Standings | ❌ NOT IMPLEMENTED (`lookuptable.php` available but not wired) |
 
-Total effective FPTS updates correctly via existing `fptsMultiplier(role)` logic.
+**What was fixed:**
+- Removed `setTimeout` stub from `football.tsx`
+- Now calls `fetchFootballOverview()` from `api.js` on mount
+- Displays: Live Now, Upcoming (up to 10), Recent Result sections
+- Added `FootballGame`, `FootballTeam`, `FootballOverview` interfaces
+- Added Refresh button
+- Replaced "Coming Soon" hard-stop with "Fantasy optimizer coming next" notice
 
 | Check | Result |
 |-------|--------|
 | TypeScript | ✅ 0 errors |
 | Production build | ✅ |
-| Commit pushed | ✅ `88f0198` on `origin/main` |
+| Commit pushed | ✅ `36f7f8d` on `origin/main` |
+
+### Football Gap Analysis (full)
+
+**Not broken — not yet implemented (gap list for future sessions):**
+
+1. No football types library — `FootballPlayer`, `FootballLineup`, `FootballOptimizerState` all missing
+2. No football scoring engine — no fantasy points calculation (Task 2)
+3. No match detail page — no `/football/:leagueId/game/:id` route
+4. No football optimizer — no Auto Pick, no Captain/VC, no formation validation (Task 2)
+5. No Recent/Today/Tomorrow tab pattern matching cricket/basketball
+6. `getPlayerGameLog()` stub — always returns `[]`
+7. `getTeamSchedule()` stub — always returns `[]`
+8. No lineups from TSDB (TSDB `lookupevent.php` has lineup data in some matches but not wired)
+9. No player statistics
+10. No standings (TSDB `lookuptable.php` available but not wired)
+11. No competition-specific sub-pages
+12. No football-specific AI intelligence
+
+---
+
+## Session 6 — Tasks 1, 2, 3 (2026-07-29)
+
+### Task 1 — Basketball Auto Pick Fix
+**Commit:** `88f0198`
+
+**Fix:** After picking 8 players, sort by `baseFpts` descending:
+- `captainId` = highest FPTS picked player
+- `viceCaptainId` = second highest FPTS picked player
 
 ---
 
 ### Task 2 — Cricket Optimizer Football Cleanup
-**Status:** Already complete from Session 4 (`878b817`).
-
-No football-specific items were ever present in `cricket-optimizer.tsx`. Verified:
-- Roles: BAT / BOWL / ALL / WK (cricket only)
-- Scoring: `calculateCricketFantasyPoints()` — cricket only
-- Format: `DetectedFormatCard` — auto-detected, no manual selector
-- No football positions, scoring, labels, or calculations present
+**Status:** Already complete from Session 4 (`878b817`). No action needed.
 
 ---
 
 ### Task 3 — Completed Match Fantasy Points
-**Commit:** (see below — committed after build)
-
-**Changes to `cricket-box-score.tsx`:**
+**Commit:** `31b6b57`
 
 | Feature | Before | After |
 |---------|--------|-------|
 | Batting SR column | ❌ missing | ✅ SR column (green ≥150, red <70) |
 | Bowling Economy column | ❌ missing | ✅ Econ column (green <6, red >10) |
 | Fielding card | ❌ missing | ✅ `FieldingCard` — C / St / RO / FPTS(fielding) |
-| No-stats message for completed matches | "Detailed scorecard not available…" | ✅ "Player statistics unavailable from current provider." |
-
-**Batting card now shows:** Runs, Balls, 4s, 6s, Strike Rate, Fantasy Points
-
-**Bowling card now shows:** Overs, Maidens, Runs, Wickets, Economy, Fantasy Points
-
-**Fielding card now shows:** Catches (C), Stumpings (St), Run Outs (RO), Fantasy Points (fielding portion only)
-
-**No fabrication:** All fantasy points are calculated from real `CricketPlayerStats` via `calculateCricketFantasyPoints()`. If no innings data exists (`game.innings.length === 0`), shows "Player statistics unavailable from current provider." — never invents numbers.
+| No-stats message | generic | ✅ "Player statistics unavailable from current provider." |
 
 ---
 
@@ -105,13 +133,14 @@ No football-specific items were ever present in `cricket-optimizer.tsx`. Verifie
 
 ## TypeScript / Build
 
-- TypeScript: ✅ Clean (0 errors) after Session 6
+- TypeScript: ✅ Clean (0 errors) after Session 7 Task 1
 - Build: ✅ Success (chunk-size warning only — pre-existing)
 
 ## Known Issues / Limitations
 
 - Cricket live scores: TSDB free tier only returns NS/FT — games show "Starting" status
-- Football fantasy logic not implemented
+- Football fantasy logic not implemented (Task 2)
+- Football match detail pages not implemented
 - AI intelligence/ratings are mock/heuristic — no live pitch, weather, player history, or ML data
 - Weather/pitch/conditions in AI Insights show ESTIMATED badge (derived from format heuristics, not live API)
 - Player of Match, Toss result not available from TSDB free tier
