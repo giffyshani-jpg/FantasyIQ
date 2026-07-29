@@ -1,7 +1,7 @@
 # FantasyIQ — Current Status
 
-**Last updated:** 2026-07-29 (Feature Session 5 — Cricket Match Details Pipeline)
-**HEAD:** ecf6015
+**Last updated:** 2026-07-29 (Session 6 — Tasks 1, 2, 3 complete)
+**HEAD:** (see commits below)
 **Repo:** https://github.com/giffyshani-jpg/FantasyIQ
 
 ## Running
@@ -20,10 +20,14 @@ Note: `PORT` and `BASE_PATH` are **required** for both dev and build — vite.co
 - Home page — 3-sport hub (Cricket / Basketball / Football)
 - Basketball page — NBA + WNBA with **Recent / Today / Tomorrow** tabs (no Day After)
   - Recent tab: `findRecentDate()` walks backwards up to 30 days
+- **Basketball optimizer — Auto Pick now assigns Captain and Vice Captain automatically** ✅ Task 1 (`88f0198`)
 - Cricket schedule — **Recent / Today / Tomorrow** tabs (no Day After)
   - Recent tab: scans `overview.recentCompleted`, finds most-recent date
 - Cricket box score → back button navigates to `/cricket` ✅ (no 404)
 - Cricket optimizer → back-nav "Match Details" → returns to cricket box score ✅
+- **Cricket optimizer — no football items; format auto-detected; cricket-only scoring** ✅ Task 2 (done in Session 4, `878b817`)
+- **Cricket box score — SR, Economy, Fielding card, fantasy points for completed matches** ✅ Task 3
+- **Cricket box score — "Player statistics unavailable from current provider." shown when no stats** ✅ Task 3
 - Football page — infrastructure only
 - All individual league pages (NBA, WNBA, NBL, NZNBL, FIBA, NBA Summer)
 - Box score, optimizer, play-by-play, player comparison, player detail
@@ -33,106 +37,75 @@ Note: `PORT` and `BASE_PATH` are **required** for both dev and build — vite.co
 
 ---
 
-## Feature Session 5 — Cricket Match Details Pipeline (2026-07-29)
+## Session 6 — Tasks 1, 2, 3 (2026-07-29)
 
-**Commit:** `ecf6015`
+### Task 1 — Basketball Auto Pick Fix
+**Commit:** `88f0198`
 
-### Root Cause Analysis
+**Problem:** `handleAutoPick()` hard-coded `captainId: null` and `viceCaptainId: null`.
 
-Three independent bugs all contributed to "UNK vs UNK / Unknown teams":
+**Fix:** After picking 8 players, sort by `baseFpts` descending:
+- `captainId` = highest FPTS picked player
+- `viceCaptainId` = second highest FPTS picked player
 
-| Bug | Location | Cause | Fix |
-|-----|----------|-------|-----|
-| Bug 1 | `normalizeTsdbEvent()` | `makeAbbreviation(ev.strHomeTeam)` called with raw null → returned `"UNK"` | Resolve `homeName`/`awayName` fallback **before** calling `makeAbbreviation` |
-| Bug 2 | `fetchGameById()` Provider 1 | TSDB `lookupevent.php` returned event with empty team names; accepted as-is | New `enrichFromCache()` — after Provider 1 succeeds, if team names are `"Home"`/`"Away"`, overwrite with real names from DAY_CACHE/LEAGUE_CACHE |
-| Bug 3 | `fetchGameById()` + `fetchCricketOverview()` | `DAY_CACHE`/`LEAGUE_CACHE` are empty on fresh browser load (direct URL, page refresh) → Provider 2 always missed → Provider 3 returned "Unknown"/"UNK" shell | **(a)** New `seedGameCache()` export + api.js seeding; **(b)** Provider 2.5 (trigger overview refresh, retry cache scan) |
-
-### Navigation Pipeline (fixed)
-
-```
-Schedule page load
-  → fetchCricketOverview() → getLeagueOverview()
-  → DAY_CACHE + LEAGUE_CACHE populated
-  → seedGameCache() called for ALL live + upcoming + recentCompleted + lastPlayed
-  → GAME_CACHE pre-populated with full schedule data
-
-User clicks match card
-  → URL: /cricket/{competitionSlug}/game/{encodeURIComponent(game.id)}
-  → Box-score page: gameId = decodeURIComponent(rawId) (contains "tsdb:{idEvent}")
-
-fetchGameById(gameId) — 4-tier chain:
-  Provider 0: GAME_CACHE hit (seeded from overview) → full schedule data ✅
-  Provider 1: TSDB lookupevent.php + enrichFromCache() if names are placeholder ✅
-  Provider 2: In-memory cache scan (DAY_CACHE + LEAGUE_CACHE) ✅
-  Provider 2.5: trigger getLeagueOverview() refresh → retry cache scan ✅
-              (handles direct URL / page refresh — adds ~1-2s but gets real data)
-  Provider 3: minimal shell (last resort — "Team (home)"/"Team (away)", _providerNote)
-```
-
-### Changes Made
-
-**`artifacts/hoopiq/src/providers/cricket.js`:**
-- `normalizeTsdbEvent()`: resolve `homeName`/`awayName` before `makeAbbreviation` (Bug 1)
-- `enrichFromCache()`: new helper — fills placeholder team names + missing venue/competition/format from cache (Bug 2)
-- `buildMinimalGame()`: no longer uses `"Unknown"`/`"UNK"` strings; uses `"Team (home)"`/`"Team (away)"` + `_providerNote` with event ID for debugging
-- `seedGameCache()`: new **export** — writes to `GAME_CACHE` from overview callers (Bug 3a); skips overwriting real detail-fetch results
-- `fetchGameById()`: upgraded to 4-tier chain — Provider 0 (GAME_CACHE) + Provider 1 (TSDB + enrichment) + Provider 2 (cache scan) + Provider 2.5 (overview-triggered refresh) + Provider 3 (minimal shell). All tiers log which source and team names they supplied.
-
-**`artifacts/hoopiq/src/api.js`:**
-- `fetchCricketOverview()`: after successful result, seeds all games (live + upcoming + recentCompleted + lastPlayed) into `GAME_CACHE` via `cricketProvider.seedGameCache()` (Bug 3a)
-
-### Verification
+Total effective FPTS updates correctly via existing `fptsMultiplier(role)` logic.
 
 | Check | Result |
 |-------|--------|
 | TypeScript | ✅ 0 errors |
-| Production build | ✅ Success (chunk-size warning only — pre-existing) |
-| safeCall() intact | ✅ |
-| Key invariants 1–15 | ✅ All confirmed |
-| Commit pushed | ✅ `ecf6015` on `origin/main` |
+| Production build | ✅ |
+| Commit pushed | ✅ `88f0198` on `origin/main` |
+
+---
+
+### Task 2 — Cricket Optimizer Football Cleanup
+**Status:** Already complete from Session 4 (`878b817`).
+
+No football-specific items were ever present in `cricket-optimizer.tsx`. Verified:
+- Roles: BAT / BOWL / ALL / WK (cricket only)
+- Scoring: `calculateCricketFantasyPoints()` — cricket only
+- Format: `DetectedFormatCard` — auto-detected, no manual selector
+- No football positions, scoring, labels, or calculations present
+
+---
+
+### Task 3 — Completed Match Fantasy Points
+**Commit:** (see below — committed after build)
+
+**Changes to `cricket-box-score.tsx`:**
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Batting SR column | ❌ missing | ✅ SR column (green ≥150, red <70) |
+| Bowling Economy column | ❌ missing | ✅ Econ column (green <6, red >10) |
+| Fielding card | ❌ missing | ✅ `FieldingCard` — C / St / RO / FPTS(fielding) |
+| No-stats message for completed matches | "Detailed scorecard not available…" | ✅ "Player statistics unavailable from current provider." |
+
+**Batting card now shows:** Runs, Balls, 4s, 6s, Strike Rate, Fantasy Points
+
+**Bowling card now shows:** Overs, Maidens, Runs, Wickets, Economy, Fantasy Points
+
+**Fielding card now shows:** Catches (C), Stumpings (St), Run Outs (RO), Fantasy Points (fielding portion only)
+
+**No fabrication:** All fantasy points are calculated from real `CricketPlayerStats` via `calculateCricketFantasyPoints()`. If no innings data exists (`game.innings.length === 0`), shows "Player statistics unavailable from current provider." — never invents numbers.
+
+---
+
+## Feature Session 5 — Cricket Match Details Pipeline (2026-07-29)
+
+**Commit:** `ecf6015` — UNK vs UNK fix (3 bugs)
 
 ---
 
 ## Feature Session 4 — Cricket Data Engine (2026-07-28)
 
-### ✅ Task 1 — Fix Cricket Date/Time Engine
-**Commit:** `240859e`
-
-- `fmtDate()` in cricket.js: UTC → local timezone via `toLocaleDateString("en-CA")`
-- Day-based query window expanded from `[-1..+3]` to `[-2..+3]` (48h Recent support)
-- `normalizeTsdbEvent()` fallback `startTimeIso` uses UTC noon proxy
-- `recentCompleted` capped at 48h (was: all completed games ever)
-- `KNOWN_LEAGUES` expanded: The Hundred M/W, ICC Int'l T20I/ODI/Test, ICC T20WC/ODIWC/CT, WPL, WBBL, Abu Dhabi T10
-- `cricket-schedule.tsx` Recent tab: all completed last 48h; Today/Tomorrow: include completed from recentCompleted; dedup by id
-
-### ✅ Task 2 — Auto-detect Match Format
-**Commit:** `878b817`
-
-- Removed `ProfileSelector` (manual picker); added `DetectedFormatCard` (read-only)
-- `FORMAT_COLORS` map for colour-coded format badges; `SCORING_PROFILES` import removed
-
-### ✅ Task 3 — Cricket Data Fallback Engine
-**Commit:** `cc0f57c`
-
-- 3-tier `fetchGameById()` fallback (upgraded to 4-tier in Session 5)
-- `GAME_CACHE`, `findInCache()`, `buildMinimalGame()`
-- `NoScorecard` → rich pre-match panel with venue/competition/format
-
-### ✅ Tasks 4+5 — Match Details & Optimizer Data
-**Commit:** `9828fc7`
-
-- `MatchSummaryCard` for completed matches
-- `deriveWeatherFromHeuristic()` — weather label from dew factor
-- Pitch: PLACEHOLDER → ESTIMATED badge; Weather: always shows derived label
-
-### ✅ Task 6 — Smoke Test
-- TypeScript: ✅ | Build: ✅ | All invariants confirmed
+**Commits:** `240859e`, `878b817`, `cc0f57c`, `9828fc7`
 
 ---
 
 ## TypeScript / Build
 
-- TypeScript: ✅ Clean (0 errors) after Session 5
+- TypeScript: ✅ Clean (0 errors) after Session 6
 - Build: ✅ Success (chunk-size warning only — pre-existing)
 
 ## Known Issues / Limitations
@@ -142,5 +115,5 @@ fetchGameById(gameId) — 4-tier chain:
 - AI intelligence/ratings are mock/heuristic — no live pitch, weather, player history, or ML data
 - Weather/pitch/conditions in AI Insights show ESTIMATED badge (derived from format heuristics, not live API)
 - Player of Match, Toss result not available from TSDB free tier
-- Innings scorecard not available from TSDB free tier
-- Provider 3 (minimal fallback) now uses "Team (home)"/"Team (away)" rather than "Unknown"/"UNK" — only reached if game is truly absent from TSDB and all schedule caches
+- Innings scorecard not available from TSDB free tier (completed matches show "Player statistics unavailable from current provider.")
+- Provider 3 (minimal fallback) uses "Team (home)"/"Team (away)" — only reached if game absent from all caches
