@@ -2,63 +2,57 @@
 
 ## Latest Session Summary
 
-Feature Session 4 — Tasks 1–6 (Cricket Data Engine) — 2026-07-28.
+Feature Session 5 — Cricket Match Details Pipeline Reliability — 2026-07-29.
 
-### Task 1 — Fix Cricket Date/Time Engine
-- `providers/cricket.js`:
-  - `fmtDate()`: UTC (`toISOString().slice(0,10)`) → local (`toLocaleDateString("en-CA")`)
-  - Day-based query window: `[-1..+3]` → `[-2..+3]`
-  - `normalizeTsdbEvent()` fallback startTimeIso: UTC noon proxy (`T12:00:00Z`) replaces venue-local strTime
-  - `recentCompleted` filtered to 48h window (was all completed ever)
-  - `KNOWN_LEAGUES` expanded: The Hundred (M/W), ICC T20I/ODI/Test, ICC T20WC/ODIWC/CT, WPL, WBBL, Abu Dhabi T10
-  - `detectFormat()`: ODI regex excludes T20WC; T10 catches Abu Dhabi T10
-- `pages/cricket-schedule.tsx`:
-  - Recent tab: all completed last 48h (not just most-recent-date's games)
-  - Today/Tomorrow tabs: include completed from recentCompleted matching target date; dedup by id
+### Root Cause + Fix (Session 5)
 
-### Task 2 — Auto-detect Match Format
-- `pages/cricket-optimizer.tsx`:
-  - Removed `ProfileSelector` (manual picker)
-  - Added `DetectedFormatCard` (read-only: format badge + "AUTO-DETECTED from {competition}")
-  - `FORMAT_COLORS` map for format badge colours
-  - `SCORING_PROFILES` import removed (was unused after selector removal)
-  - Internal `profile` state + auto-set from `getScoringProfile()` on game load — unchanged
+**Problem:** Opening some schedule matches showed UNK vs UNK, Unknown teams, empty optimizer, missing venue/competition/format.
 
-### Task 3 — Cricket Data Fallback Engine
-- `providers/cricket.js`:
-  - Added `GAME_CACHE` (2 min scheduled / 10 min final TTL)
-  - `findInCache()` — scans DAY_CACHE + LEAGUE_CACHE for game by ID
-  - `buildMinimalGame(gameId)` — constructs minimal game shell (never null)
-  - `fetchGameById()` now has 3-tier fallback: TSDB lookupevent → cache scan → minimal shell
-  - Logs: `console.info` on success, `console.warn` on miss/fallback
-- `pages/cricket-box-score.tsx`:
-  - `NoScorecard` → `InfoRow`-based pre-match / no-scorecard panel
-  - Shows venue, competition, format, start time for scheduled; result + note for completed
-- `pages/cricket-optimizer.tsx`:
-  - Context-aware empty player pool message (scheduled / in-progress / final)
-  - Shows venue + competition from game even when no players available
+**Three independent bugs, all fixed:**
 
-### Tasks 4+5 — Match Details & Optimizer Data
-- `lib/cricket-ai-intelligence.ts`:
-  - Added `deriveWeatherFromHeuristic(h)` — derives weather label + impact from dew factor
-  - `buildMatchConditions()`: weather.label + weather.condition now set from heuristic (not hardcoded "UNKNOWN")
-  - `isPlaceholder: true` stays on weather/pitch — flag means "not from live API", not "no data"
-- `components/cricket-match-intelligence.tsx`:
-  - Weather section: header with derived label + ESTIMATED badge; always shows impact text
-  - Pitch Report: PLACEHOLDER badge → ESTIMATED
-  - AIInsightsPanel Weather MetricRow: `weather.label` (not `"Awaiting data"`)
-- `pages/cricket-box-score.tsx`:
-  - Added `MatchSummaryCard` — shown for `final`-status matches above AI card
-  - Displays: Result, Venue, Competition, Format + POTM/Toss unavailable note
+#### Bug 1 — Abbreviation (normalizeTsdbEvent)
+```
+Before: abbreviation: makeAbbreviation(ev.strHomeTeam)  // null → "UNK"
+After:  const homeName = ev.strHomeTeam || "Home";
+        abbreviation: makeAbbreviation(homeName)         // "Home" → "HOM"
+```
 
-### Task 6 — Smoke Test
-- TypeScript: ✅ 0 errors
-- Build: ✅ Success
-- All 13 invariants confirmed — see CURRENT_STATUS.md
+#### Bug 2 — Provider 1 weak data not enriched (fetchGameById)
+TSDB `lookupevent.php` sometimes returns events with empty `strHomeTeam`/`strAwayTeam` even though `eventsday.php` had real team names. Added `enrichFromCache(game)` helper:
+- Called immediately after Provider 1 normalizes an event
+- If `homeTeam.name === "Home"` → replace from cache if available
+- Also fills `venue`, `competitionName`, `competitionSlug`, `format` from cache
+- Only overwrites placeholders — real Provider 1 data is preserved
+
+#### Bug 3 — Direct navigation / page refresh (fetchGameById + api.js)
+`DAY_CACHE` and `LEAGUE_CACHE` are in-memory module singletons — empty on fresh browser load. On refresh or shared-link navigation, Provider 2 (cache scan) always missed → Provider 3 returned "Unknown"/"UNK" shell.
+
+**Fix part A — seedGameCache export:**
+- New `export function seedGameCache(game)` in `cricket.js`
+- `api.js` calls it for every game in `fetchCricketOverview()` result (live + upcoming + recentCompleted + lastPlayed)
+- `GAME_CACHE` is pre-populated immediately after overview loads
+- Normal schedule→box-score navigation now hits Provider 0 (GAME_CACHE) with full schedule data
+
+**Fix part B — Provider 2.5:**
+- If Provider 2 (cache scan) misses: call `await getLeagueOverview()` to repopulate DAY_CACHE + LEAGUE_CACHE, then retry `findInCache(gameId)`
+- Handles direct URL navigation / page refresh
+- Adds ~1–2s latency on first direct load but guarantees real team names
+
+### Files Modified (Session 5)
+
+**`artifacts/hoopiq/src/providers/cricket.js`:**
+- `normalizeTsdbEvent()`: resolve `homeName`/`awayName` before `makeAbbreviation`
+- `enrichFromCache(game)`: new helper — supplements placeholder names/venue/competition from cache
+- `buildMinimalGame(gameId)`: no longer uses "Unknown"/"UNK"; uses "Team (home)"/"Team (away)" + `_providerNote`
+- `seedGameCache(game)`: new **export** — writes to `GAME_CACHE`; skips overwriting fresher entries
+- `fetchGameById()`: upgraded to 4-tier chain (Provider 0 → 1 + enrichment → 2 → 2.5 → 3); all tiers log source + team names
+
+**`artifacts/hoopiq/src/api.js`:**
+- `fetchCricketOverview()`: seeds all games into `GAME_CACHE` via `cricketProvider.seedGameCache()`
 
 ---
 
-## Architecture (as of Feature Session 4)
+## Architecture (as of Feature Session 5)
 
 ### Routing
 ```
@@ -72,64 +66,103 @@ Feature Session 4 — Tasks 1–6 (Cricket Data Engine) — 2026-07-28.
 /:league/game/:id/plays        → PlayByPlay
 /:league/game/:id/compare      → PlayerComparison
 /:league/player/:playerId      → PlayerDetail
-/cricket/:competition/game/:id             → CricketBoxScore  ← Match Summary + AI Insights + Rating + Badges
-/cricket/:competition/game/:id/optimizer   → CricketOptimizer  ← AI Rating + Badges on PlayerRow
+/cricket/:competition/game/:id             → CricketBoxScore
+/cricket/:competition/game/:id/optimizer   → CricketOptimizer
+```
+
+### Match ID Format
+```
+game.id = "tsdb:{idEvent}"          e.g. "tsdb:1234567"
+URL     = /cricket/{competitionSlug}/game/tsdb%3A1234567
+Box-score extracts: decodeURIComponent(params.id) → "tsdb:1234567"
+fetchGameById receives: "tsdb:1234567"
+lookupevent call uses: "1234567" (strips "tsdb:" prefix)
+```
+
+### fetchGameById — 4-tier Fallback Chain (Session 5)
+
+```
+Provider 0: GAME_CACHE
+  ✓ hit  → return (src logged: overview-seed / tsdb-lookupevent / cache-scan / overview-triggered)
+  ✗ miss → continue
+
+Provider 1: TSDB lookupevent.php?id={eventId}
+  → normalizeTsdbEvent(ev)                          [Bug 1 fixed: homeName resolved first]
+  → enrichFromCache(game)                           [Bug 2 fixed: fills placeholder names]
+  ✓ success → setCachedGame() → return, logs home/away names
+  ✗ fail    → continue
+
+Provider 2: findInCache(gameId)
+  Searches DAY_CACHE (dateStr → games[]) + LEAGUE_CACHE (leagueId → events[])
+  ✓ hit  → setCachedGame(_provider="cache-scan") → return, logs home/away names
+  ✗ miss → console.warn with cache sizes → continue
+
+Provider 2.5: await getLeagueOverview() → retry findInCache(gameId)
+  [Bug 3b fixed: handles direct URL navigation / page refresh]
+  ✓ hit  → setCachedGame(_provider="overview-triggered") → return, logs home/away names
+  ✗ miss → console.warn → continue
+
+Provider 3: buildMinimalGame(gameId)
+  Last resort — "Team (home)"/"Team (away)" + _providerNote with event ID
+  NOT cached (retry fresh on next navigation)
+```
+
+### seedGameCache — Overview Seeding (Session 5)
+
+```
+fetchCricketOverview() [api.js]
+  → cricketProvider.getLeagueOverview()
+  → result: { live[], upcoming[], recentCompleted[], lastPlayed }
+  → for each game: cricketProvider.seedGameCache(game)
+     → GAME_CACHE.set(game.id, { game: {..., _provider:"overview-seed"}, fetchedAt })
+     → Skips if existing entry has _provider NOT in ["minimal-fallback", "overview-seed"]
+       (preserves fresher detail-fetch results)
 ```
 
 ### File Layout
 ```
 artifacts/hoopiq/
   src/
-    api.js                    — adapter boundary; ALL provider calls go through here
+    api.js                    — adapter boundary; seeds GAME_CACHE from overview (Session 5)
     App.tsx                   — routes; cricket routes MUST come before /:league catch-all
     providers/
-      cricket.js              — TheSportsDB multi-league + day-based; 3-tier fetchGameById fallback
-      espn.js                 — ESPN provider (NBA, WNBA, NBL, FIBA, Summer)
-      nba.js / wnba.js        — league wrappers around espn.js
-      nbadotcom.js            — NBA CDN fallback
-      thesportsdb.js          — TheSportsDB basketball (NZ NBL)
-      nznbl.js                — NZ NBL (TheSportsDB primary)
-      football.js             — TheSportsDB Soccer (infrastructure only)
+      cricket.js              — TheSportsDB; 4-tier fetchGameById; seedGameCache export
+      espn.js / nba.js / wnba.js / nbadotcom.js / thesportsdb.js / nznbl.js / football.js
     lib/
       date-utils.ts           ← single source of truth for ALL local-timezone helpers
-      types.ts                — LeagueKey union, Game, Player types
       cricket-types.ts        — CricketGame, CricketPlayer, CricketInnings, etc.
       cricket-scoring.ts      — scoring engine (T20/ODI/Test/Hundred/T10 profiles)
-      cricket-ai-intelligence.ts  ← AI Match Intelligence + Captain/VC Engine + Match Conditions + weather heuristic
-      ai-player-rating.ts     ← per-player 0–100 AI rating + PlayerBadge classification
-      format-filter.ts        — filterStatsByFormat(), computeRollingStats()
-      provider-manager.ts     — createProviderManager() — implemented, not yet wired into api.js
-      stats.ts                — basketball fantasy points formula
-      pregame-intel.ts        — pre-game intelligence heuristics
-      ai-coach.ts             — AI Fantasy Coach 12 named picks
+      cricket-ai-intelligence.ts  ← AI Match Intelligence + weather heuristic
+      ai-player-rating.ts     ← per-player AI rating + PlayerBadge classification
+      provider-manager.ts     — createProviderManager() — not yet wired into api.js
     pages/
-      home.tsx                — FantasyIQ home hub (3 sport cards)
-      basketball.tsx          — /basketball — Recent/Today/Tomorrow tabs
       cricket-schedule.tsx    — /cricket — Recent/Today/Tomorrow tabs
-      cricket-box-score.tsx   — /cricket/:competition/game/:id  ← MatchSummaryCard + AI + Badges
-      cricket-optimizer.tsx   — /cricket/:competition/game/:id/optimizer  ← DetectedFormatCard + AI Badges
-      football.tsx            — /football — coming soon banner
+      cricket-box-score.tsx   — MatchSummaryCard + AI Insights + Badges
+      cricket-optimizer.tsx   — DetectedFormatCard + AI Badges
     components/
-      cricket-match-intelligence.tsx  ← AI Insights Panel + full Captain/VC detail + Estimated weather
+      cricket-match-intelligence.tsx  ← AI Insights Panel + Captain/VC + Estimated weather
 ```
 
 ### Key Invariants — NEVER BREAK THESE
 
 1. **`safeCall()` wraps every provider call** in `api.js`. Never remove.
 2. **UI never imports from providers directly** — only from `src/api.js`.
-3. **Cricket routes in `App.tsx` before `/:league`** — `/cricket/:competition/game/:id` must be listed before `/:league/game/:id`.
-4. **`mapTsdbStatus()` never infers `in_progress` from time** — only from TSDB's explicit `strStatus` field.
+3. **Cricket routes in `App.tsx` before `/:league`** — `/cricket/:competition/game/:id` before `/:league/game/:id`.
+4. **`mapTsdbStatus()` never infers `in_progress` from time** — only from TSDB strStatus.
 5. **`isGameSoon(game)`** in `basketball.tsx` — 48h window filter. Do not remove.
-6. **`fetchGamesByLeagueAndLocalDate()`** in `api.js` — fetches both local date AND prev ESPN date. Do not revert.
+6. **`fetchGamesByLeagueAndLocalDate()`** in `api.js` — fetches both local date AND prev ESPN date.
 7. **StatusBadge "Starting" window = 8h** in `cricket-schedule.tsx`. Do not reduce.
-8. **All date/time helpers live in `src/lib/date-utils.ts`** — do NOT add new local date helpers in page files.
+8. **All date/time helpers live in `src/lib/date-utils.ts`** — no new helpers in page files.
 9. **`PORT` and `BASE_PATH` are required** for both `vite dev` and `vite build`.
-10. **AI intelligence `isMock: true`** on all outputs — consumers must show MOCK badge. Do not remove until real AI provider wired.
-11. **`isPlaceholder: true`** on `surface`, `weather`, `pitchReport` in MatchConditions — means "not from live API". Values ARE derived from heuristics. Do not remove flag until real pitch/weather API wired.
+10. **AI intelligence `isMock: true`** on all outputs — show MOCK badge until real AI wired.
+11. **`isPlaceholder: true`** on `pitchReport`/`weather` in MatchConditions — values ARE derived from heuristics; flag means "not from live API". Do not remove until real API wired.
 12. **`computePlayerAIRating()` returns `isMock: true`** — keep until real player-history provider wired.
-13. **`computePlayerBadge()` is exclusive** — returns one badge or null, priority: HOT→SAFE→VALUE PICK→RISKY→DIFFERENTIAL. Do not change priority without updating docs.
-14. **`fetchGameById()` 3-tier fallback** — Provider 1 (TSDB) → Provider 2 (cache scan) → Provider 3 (minimal shell). Never return null from fetchGameById. Tier 3 must always produce a renderable game object.
-15. **`fmtDate()` in cricket.js** uses `toLocaleDateString("en-CA")` for local timezone. Do NOT revert to UTC (`toISOString().slice(0,10)`).
+13. **`computePlayerBadge()` is exclusive** — HOT→SAFE→VALUE PICK→RISKY→DIFFERENTIAL. Do not change priority without updating docs.
+14. **`fetchGameById()` never returns null** — Provider 3 always returns a renderable shell.
+15. **`fmtDate()` in cricket.js** uses `toLocaleDateString("en-CA")`. Do NOT revert to UTC.
+16. **`normalizeTsdbEvent()` resolves `homeName`/`awayName` before `makeAbbreviation`** — never pass raw `ev.strHomeTeam` to `makeAbbreviation` directly (Bug 1 fix).
+17. **`seedGameCache()` is called in `fetchCricketOverview()`** after every successful overview load — do not remove. This seeding is what prevents UNK vs UNK on normal navigation (Bug 3 fix).
+18. **`enrichFromCache(game)` is called after Provider 1 normalization** in `fetchGameById()` — do not remove. This fills placeholder team names from schedule cache (Bug 2 fix).
 
 ### Dev Commands
 ```bash
@@ -139,44 +172,25 @@ PORT=21534 BASE_PATH=/ pnpm --filter @workspace/hoopiq run build  # production b
 git push origin main   # from /home/runner/FantasyIQ
 ```
 
-### Workflow Notes
-- Managed workflow: `artifacts/hoopiq: web` (use WorkflowsRestart to start)
-- Manual workflow: `HoopIQ` — `PORT=21534 BASE_PATH=/ pnpm --filter @workspace/hoopiq run dev`
-- Push: `git push origin main` from the cloned repo directory (`/home/runner/FantasyIQ`)
-
 ---
 
-## Cricket Provider Architecture (Feature Session 4)
-
-### `fetchGameById()` Fallback Chain
-
-```
-Provider 1: TSDB lookupevent.php?id={eventId}
-  ✓ success → normalizeTsdbEvent() → setCachedGame() → return
-  ✗ fail    → console.warn + fall through
-
-Provider 2: In-memory cache scan (findInCache)
-  Searches: DAY_CACHE (Map keyed by date string) + LEAGUE_CACHE (Map keyed by leagueId)
-  ✓ hit  → spread + allPlayers=[] + _provider="cache-scan" → setCachedGame() → return
-  ✗ miss → console.warn + fall through
-
-Provider 3: buildMinimalGame(gameId)
-  Always succeeds — constructs minimal CricketGame shell
-  _provider = "minimal-fallback"
-  status = "scheduled", teams = "Unknown"
-  NOT cached (retry fresh on next navigation)
-```
+## Cricket Provider Architecture
 
 ### GAME_CACHE TTLs
 - Scheduled / in-progress: 2 minutes
 - Final: 10 minutes
+- overview-seed entries: follow the scheduled TTL (2 min)
 
----
+### _provider field values
+| Value | Set by | Meaning |
+|-------|--------|---------|
+| `"overview-seed"` | `seedGameCache()` | Seeded from overview result; may be overwritten by detail fetch |
+| `"tsdb-lookupevent"` | Provider 1 | Direct TSDB event lookup; enriched if team names were placeholders |
+| `"cache-scan"` | Provider 2 | Found in DAY_CACHE or LEAGUE_CACHE |
+| `"overview-triggered"` | Provider 2.5 | Found after triggering overview refresh (direct URL navigation) |
+| `"minimal-fallback"` | Provider 3 | Last resort — game not found anywhere |
 
-## Weather Derivation (Feature Session 4)
-
-`deriveWeatherFromHeuristic(h: FormatHeuristic)` in `cricket-ai-intelligence.ts`:
-
+### Weather Derivation
 | Dew Factor | condition | label |
 |------------|-----------|-------|
 | HIGH | HUMID | "Warm & Humid (Est.)" |
@@ -184,63 +198,41 @@ Provider 3: buildMinimalGame(gameId)
 | LOW | CLEAR | "Mostly Clear (Est.)" |
 | NONE | CLEAR | "Clear / Variable (Est.)" |
 
-Impact text is format/dew-aware. `isPlaceholder: true` stays set (label says "Est." to signal estimation). To plug in real weather, replace `deriveWeatherFromHeuristic()` return values with live API data and set `isPlaceholder: false`.
-
----
-
-## PlayerBadge System
-
-**File:** `src/lib/ai-player-rating.ts`
-
-| Badge | Condition |
-|-------|-----------|
-| HOT | overall ≥ 78 |
-| SAFE | riskScore ≥ 68 AND overall ≥ 55 |
-| VALUE PICK | overall ≥ 58 AND credits < 8.5 |
-| RISKY | overall < 44 |
-| DIFFERENTIAL | overall ≥ 52 (catch-all) |
-| null | 44–51 range — no badge |
-
----
-
-## TheSportsDB Cricket League IDs
-
+### TheSportsDB Cricket League IDs (KNOWN_LEAGUES)
 ```javascript
-const KNOWN_LEAGUES = [
-  { id: 4460, name: "Indian Premier League",           format: "T20"  },
-  { id: 4461, name: "Big Bash League",                 format: "T20"  },
-  { id: 4463, name: "Vitality T20 Blast",              format: "T20"  },
-  { id: 4458, name: "County Championship Div 1",       format: "Test" },
-  { id: 4459, name: "County Championship Div 2",       format: "Test" },
-  { id: 4462, name: "SA T20 Challenge",                format: "T20"  },
-  { id: 5067, name: "Pakistan Super League",           format: "T20"  },
-  { id: 5174, name: "Super Smash",                     format: "T20"  },
-  { id: 5175, name: "Lanka Premier League",            format: "T20"  },
-  { id: 5176, name: "Caribbean Premier League",        format: "T20"  },
-  { id: 5529, name: "Bangladesh Premier League",       format: "T20"  },
-  { id: 5530, name: "Sheffield Shield",                format: "Test" },
-  { id: 5532, name: "SA20",                            format: "T20"  },
-  { id: 5533, name: "Nepal Premier League",            format: "T10"  },
-  { id: 5534, name: "Shpageeza Cricket League",        format: "T20"  },
-  { id: 5535, name: "Zimbabwe T20",                    format: "T20"  },
-  { id: 5606, name: "Ireland T20 Trophy",              format: "T20"  },
-  { id: 5561, name: "The Hundred (Men's)",             format: "The Hundred" },
-  { id: 5562, name: "The Hundred (Women's)",           format: "The Hundred" },
-  { id: 4464, name: "ICC International T20I",          format: "T20"  },
-  { id: 4465, name: "ICC International ODI",           format: "ODI"  },
-  { id: 4466, name: "ICC International Test",          format: "Test" },
-  { id: 4455, name: "ICC T20 World Cup",               format: "T20"  },
-  { id: 4456, name: "ICC Cricket World Cup (ODI)",     format: "ODI"  },
-  { id: 4457, name: "ICC Champions Trophy",            format: "ODI"  },
-  { id: 4902, name: "ICC Women's T20 World Cup",       format: "T20"  },
-  { id: 4903, name: "ICC Women's Cricket World Cup",   format: "ODI"  },
-  { id: 4904, name: "ICC Women's T20I",                format: "T20"  },
-  { id: 4905, name: "ICC Women's ODI",                 format: "ODI"  },
-  { id: 5560, name: "Women's Premier League",          format: "T20"  },
-  { id: 5607, name: "WBBL",                            format: "T20"  },
-  { id: 5563, name: "Abu Dhabi T10",                   format: "T10"  },
-];
+[
+  { id: 4460, name: "Indian Premier League",        format: "T20"  },
+  { id: 4461, name: "Big Bash League",              format: "T20"  },
+  { id: 4463, name: "Vitality T20 Blast",           format: "T20"  },
+  { id: 4458, name: "County Championship Div 1",    format: "Test" },
+  { id: 4459, name: "County Championship Div 2",    format: "Test" },
+  { id: 4462, name: "SA T20 Challenge",             format: "T20"  },
+  { id: 5067, name: "Pakistan Super League",        format: "T20"  },
+  { id: 5174, name: "Super Smash",                  format: "T20"  },
+  { id: 5175, name: "Lanka Premier League",         format: "T20"  },
+  { id: 5176, name: "Caribbean Premier League",     format: "T20"  },
+  { id: 5529, name: "Bangladesh Premier League",    format: "T20"  },
+  { id: 5530, name: "Sheffield Shield",             format: "Test" },
+  { id: 5532, name: "SA20",                         format: "T20"  },
+  { id: 5533, name: "Nepal Premier League",         format: "T10"  },
+  { id: 5534, name: "Shpageeza Cricket League",     format: "T20"  },
+  { id: 5535, name: "Zimbabwe T20",                 format: "T20"  },
+  { id: 5606, name: "Ireland T20 Trophy",           format: "T20"  },
+  { id: 5561, name: "The Hundred (Men's)",          format: "The Hundred" },
+  { id: 5562, name: "The Hundred (Women's)",        format: "The Hundred" },
+  { id: 4464, name: "ICC International T20I",       format: "T20"  },
+  { id: 4465, name: "ICC International ODI",        format: "ODI"  },
+  { id: 4466, name: "ICC International Test",       format: "Test" },
+  { id: 4455, name: "ICC T20 World Cup",            format: "T20"  },
+  { id: 4456, name: "ICC Cricket World Cup (ODI)",  format: "ODI"  },
+  { id: 4457, name: "ICC Champions Trophy",         format: "ODI"  },
+  { id: 4902, name: "ICC Women's T20 World Cup",    format: "T20"  },
+  { id: 4903, name: "ICC Women's Cricket World Cup",format: "ODI"  },
+  { id: 4904, name: "ICC Women's T20I",             format: "T20"  },
+  { id: 4905, name: "ICC Women's ODI",              format: "ODI"  },
+  { id: 5560, name: "Women's Premier League",       format: "T20"  },
+  { id: 5607, name: "WBBL",                         format: "T20"  },
+  { id: 5563, name: "Abu Dhabi T10",                format: "T10"  },
+]
 ```
-
-Note: IDs for The Hundred, ICC Internationals, Women's competitions are best-guess.
-Day-based auto-discovery catches any games from competitions with unknown IDs.
+Note: Some ICC/Women's/Hundred IDs are best-guess. Day-based auto-discovery catches any games with unknown IDs.
