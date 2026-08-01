@@ -1,2 +1,3 @@
 - [HoopIQ project overview](hoopiq-overview.md) — stack, provider chain, key invariants for working on this app
 - [Provider reliability approach](hoopiq-providers.md) — multi-provider fallback patterns, ESPN retry logic, TSDB/NBA CDN integration
+- [GitHub workflow](hoopiq-github-workflow.md) — FantasyIQ is developed from the GitHub main checkout; root and docs handoff files are kept in sync
