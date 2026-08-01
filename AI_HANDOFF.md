@@ -2,8 +2,37 @@
 
 ## Latest Session Summary
 
-Session 7 — Task 1 (Football Foundation Audit) complete — 2026-07-29.
-Tasks 2 (Football Optimizer) and 3 (Multi-Sport Stability) in progress this session.
+Session 8 — Task 1 (Football Live Mode) complete — 2026-08-01.
+Tasks 2 (Football Fantasy Engine), 3 (Football Optimizer), and 4 (Basketball AI Analysis) are not started.
+
+---
+
+## Session 8 Changes
+
+### Task 1 — Football Live Mode
+**Commit:** `dc26f0306e27eed3779f88f4542d7d4ed6d9da06`
+
+**Root cause:** The football page only showed a limited overview with one recent result, lacked match navigation, and discarded optional match metadata from TheSportsDB.
+
+**Implemented:**
+- Replaced the football hub with a live match centre ordered as Live Now, Upcoming, and Finished.
+- Grouped matches by league in each section.
+- Added clickable match cards with team logos, league badges, kickoff/date, venue, current score, status, and provider-supplied minute text.
+- Preserved and displayed provider-supplied yellow cards, red cards, penalty shootout scores, and extra-time scores when available.
+- Added `/football/:leagueId/game/:id` match details with the same optional event data.
+- Added shared football types for provider-backed match and team data.
+- Added `fetchFootballGame()` through the existing `safeCall()` API boundary.
+- Did not fabricate missing scores, minutes, cards, penalties, or extra-time values.
+
+**Verification:**
+- TypeScript: ✅ 0 errors
+- Production build: ✅ success
+- Runtime smoke check: ✅ `/football` returned HTTP 200
+- Workflow: ✅ HoopIQ running without browser or workflow errors
+
+**Remaining football limitations:**
+- TheSportsDB free data may omit live minute text, lineups, cards, penalties, and extra-time fields; the UI hides unavailable values.
+- Football player statistics, fantasy scoring, and optimizer remain future tasks.
 
 ---
 

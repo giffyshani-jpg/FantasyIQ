@@ -1,7 +1,7 @@
 # FantasyIQ — Current Status
 
-**Last updated:** 2026-07-29 (Session 7 — Task 1 complete, Tasks 2 & 3 in progress)
-**HEAD:** (see commits below)
+**Last updated:** 2026-08-01 (Session 8 — Task 1 complete)
+**HEAD:** `dc26f0306e27eed3779f88f4542d7d4ed6d9da06`
 **Repo:** https://github.com/giffyshani-jpg/FantasyIQ
 
 ## Running
@@ -28,12 +28,42 @@ Note: `PORT` and `BASE_PATH` are **required** for both dev and build — vite.co
 - **Cricket optimizer — no football items; format auto-detected; cricket-only scoring** ✅ Session 4 (`878b817`)
 - **Cricket box score — SR, Economy, Fielding card, fantasy points for completed matches** ✅ Session 6 (`31b6b57`)
 - **Cricket box score — "Player statistics unavailable from current provider." shown when no stats** ✅ Session 6
-- **Football page — live scores, upcoming matches, recent results from TheSportsDB** ✅ Session 7 (`36f7f8d`)
+- **Football live mode — Live Now / Upcoming / Finished, league grouping, logos, details, and optional match events** ✅ Session 8 (`dc26f0306e27eed3779f88f4542d7d4ed6d9da06`)
+- Football match details route — `/football/:leagueId/game/:id` ✅ Session 8
 - All individual league pages (NBA, WNBA, NBL, NZNBL, FIBA, NBA Summer)
 - Box score, optimizer, play-by-play, player comparison, player detail
 - AI Fantasy Coach (12 named picks with data-backed explanations)
 - **Cricket match details pipeline fully reliable** — opening any schedule match
   never shows UNK vs UNK or Unknown teams (Session 5 fix)
+
+---
+
+## Session 8 — Football Live Mode (2026-08-01)
+
+### Task 1 — Football Live Mode
+**Commit:** `dc26f0306e27eed3779f88f4542d7d4ed6d9da06`
+
+| Requirement | Result |
+|---|---|
+| Live matches first | ✅ Live Now section |
+| Upcoming below | ✅ Upcoming section |
+| Finished below | ✅ Finished section |
+| League grouping | ✅ Grouped by TheSportsDB league |
+| Team logos | ✅ Uses provider team badge URLs when present |
+| Kickoff, status, score, minute | ✅ Provider-backed; missing values are hidden |
+| Cards, penalties, extra time | ✅ Rendered only when supplied |
+| Match details page | ✅ `/football/:leagueId/game/:id` |
+
+| Check | Result |
+|---|---|
+| TypeScript | ✅ 0 errors |
+| Production build | ✅ success; existing sourcemap/chunk warnings only |
+| Runtime smoke check | ✅ `/football` returned HTTP 200 |
+| Code pushed | ✅ `dc26f0306e27eed3779f88f4542d7d4ed6d9da06` |
+
+**Remaining football limitations:**
+- TheSportsDB free data may omit live minute text, lineups, cards, penalties, and extra-time fields; the UI hides unavailable values.
+- Football player statistics, fantasy scoring, and optimizer remain future tasks.
 
 ---
 
@@ -140,9 +170,11 @@ Note: `PORT` and `BASE_PATH` are **required** for both dev and build — vite.co
 
 - Cricket live scores: TSDB free tier only returns NS/FT — games show "Starting" status
 - Football fantasy logic not implemented (Task 2)
-- Football match detail pages not implemented
+- Football optimizer not implemented (Task 3)
+- Basketball AI prediction-vs-perfect-team analysis not implemented (Task 4)
 - AI intelligence/ratings are mock/heuristic — no live pitch, weather, player history, or ML data
 - Weather/pitch/conditions in AI Insights show ESTIMATED badge (derived from format heuristics, not live API)
 - Player of Match, Toss result not available from TSDB free tier
 - Innings scorecard not available from TSDB free tier (completed matches show "Player statistics unavailable from current provider.")
 - Provider 3 (minimal fallback) uses "Team (home)"/"Team (away)" — only reached if game absent from all caches
+- TheSportsDB free tier may omit live minute text, lineups, cards, penalties, and extra-time fields
