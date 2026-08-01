@@ -4,12 +4,13 @@ FantasyIQ is a multi-sport fantasy intelligence app for basketball, cricket, and
 
 ## Documentation
 
-- [AI handoff](docs/AI_HANDOFF.md)
-- [Current status](docs/CURRENT_STATUS.md)
-- [Project context](docs/PROJECT_CONTEXT.md)
-- [Technical notes](docs/TECHNICAL_NOTES.md)
-- [Roadmap](docs/ROADMAP.md)
-- [Known issues](docs/KNOWN_ISSUES.md)
+- [AI handoff](AI_HANDOFF.md)
+- [Current status](CURRENT_STATUS.md)
+- [Project context](PROJECT_CONTEXT.md)
+- [Technical notes](TECHNICAL_NOTES.md)
+- [Roadmap](ROADMAP.md)
+- [Known issues](KNOWN_ISSUES.md)
+- [Changelog](CHANGELOG.md)
 
 ## Development
 

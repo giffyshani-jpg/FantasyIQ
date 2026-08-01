@@ -59,6 +59,7 @@ docs/                   — canonical documentation (AI_HANDOFF.md, CHANGELOG.md
 
 ## Pointers
 
+- Documentation index: `docs/README.md`
 - Full technical context: `docs/AI_HANDOFF.md`
 - Current state of what works: `docs/CURRENT_STATUS.md`
 - Bug tracker: `docs/KNOWN_ISSUES.md`
