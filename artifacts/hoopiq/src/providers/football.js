@@ -1,4 +1,4 @@
-// Football data provider — infrastructure skeleton (Task 10).
+// Football data provider — TheSportsDB-backed live match data.
 //
 // Architecture:
 //   Primary: TheSportsDB (free, CORS-open, no auth required)
@@ -14,9 +14,6 @@
 // Auto-discovery: TheSportsDB's "soccerleagues.php" endpoint returns all
 // football leagues. No hardcoded list required for competition discovery.
 //
-// Status (July 2026): INFRASTRUCTURE ONLY — returns empty datasets.
-// Wire up live data by implementing fetchTodayMatches() and fetchLeagueEvents().
-
 import { recordSuccess, recordFailure } from "../lib/provider-health";
 
 const TSDB_BASE = "https://www.thesportsdb.com/api/v1/json/3";
@@ -66,6 +63,18 @@ function makeAbbreviation(name) {
   return words[0].slice(0, 3).toUpperCase();
 }
 
+function optionalNumber(...values) {
+  const value = values.find((candidate) => candidate !== null && candidate !== undefined && candidate !== "");
+  if (value === undefined) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function optionalText(...values) {
+  const value = values.find((candidate) => typeof candidate === "string" && candidate.trim());
+  return value ? value.trim() : null;
+}
+
 function mapFootballStatus(strStatus) {
   const s = (strStatus || "").toLowerCase().trim();
   if (s === "ft" || s === "aet" || s === "pen" || s.includes("finished")) return "final";
@@ -92,11 +101,17 @@ function normalizeFootballEvent(ev) {
       id: `tsdb-football:${ev.idEvent}`,
       leagueId: ev.idLeague,
       leagueName: ev.strLeague || "Football",
+      leagueBadgeUrl: ev.strLeagueBadge || null,
       homeTeam: {
         id: String(ev.idHomeTeam || "h"),
         name: ev.strHomeTeam || "Home",
         abbreviation: makeAbbreviation(ev.strHomeTeam),
         score: ev.intHomeScore != null ? String(ev.intHomeScore) : null,
+        badgeUrl: ev.strHomeTeamBadge || null,
+        yellowCards: optionalNumber(ev.intHomeYellowCards, ev.strHomeYellowCards),
+        redCards: optionalNumber(ev.intHomeRedCards, ev.strHomeRedCards),
+        penaltyScore: optionalNumber(ev.intHomeScorePenalties, ev.intHomePenalties, ev.strHomeScorePenalties),
+        extraTimeScore: optionalNumber(ev.intHomeScoreExtra, ev.intHomeScoreExtraTime, ev.strHomeScoreExtraTime),
         players: [],
       },
       awayTeam: {
@@ -104,11 +119,20 @@ function normalizeFootballEvent(ev) {
         name: ev.strAwayTeam || "Away",
         abbreviation: makeAbbreviation(ev.strAwayTeam),
         score: ev.intAwayScore != null ? String(ev.intAwayScore) : null,
+        badgeUrl: ev.strAwayTeamBadge || null,
+        yellowCards: optionalNumber(ev.intAwayYellowCards, ev.strAwayYellowCards),
+        redCards: optionalNumber(ev.intAwayRedCards, ev.strAwayRedCards),
+        penaltyScore: optionalNumber(ev.intAwayScorePenalties, ev.intAwayPenalties, ev.strAwayScorePenalties),
+        extraTimeScore: optionalNumber(ev.intAwayScoreExtra, ev.intAwayScoreExtraTime, ev.strAwayScoreExtraTime),
         players: [],
       },
       startTimeIso,
       status,
+      statusDetail: optionalText(ev.strStatus),
+      minute: optionalText(ev.strProgress, ev.strMinute, ev.intMinute),
       venue: ev.strVenue || null,
+      country: ev.strCountry || null,
+      city: ev.strCity || null,
       result: status === "final"
         ? `${ev.strHomeTeam} ${ev.intHomeScore ?? "?"} - ${ev.intAwayScore ?? "?"} ${ev.strAwayTeam}`
         : null,
@@ -154,9 +178,7 @@ export async function getGamesByDate(dateStr) {
 
 /**
  * Football league overview — today, yesterday, tomorrow.
- * Returns { live, upcoming, lastPlayed }.
- *
- * Infrastructure only — returns empty arrays until scoring logic is wired.
+ * Returns { live, upcoming, finished, lastPlayed }.
  */
 export async function getLeagueOverview(_options) {
   const now = new Date();
@@ -178,15 +200,15 @@ export async function getLeagueOverview(_options) {
       .sort((a, b) =>
         new Date(a.startTimeIso ?? 0).getTime() - new Date(b.startTimeIso ?? 0).getTime()
       );
-    const lastPlayed = all
+    const finished = all
       .filter(g => g.status === "final")
       .sort((a, b) =>
         new Date(b.startTimeIso ?? 0).getTime() - new Date(a.startTimeIso ?? 0).getTime()
-      )[0] ?? null;
+      );
 
-    return { live, upcoming, lastPlayed };
+    return { live, upcoming, finished, lastPlayed: finished[0] ?? null };
   } catch {
-    return { live: [], upcoming: [], lastPlayed: null };
+    return { live: [], upcoming: [], finished: [], lastPlayed: null };
   }
 }
 

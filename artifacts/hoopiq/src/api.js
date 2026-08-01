@@ -451,13 +451,11 @@ export async function fetchTeamSchedule(teamId, league) {
 
 // ─── Football-specific exports ─────────────────────────────────────────────
 //
-// Football uses TheSportsDB (same as cricket). Scores and live data are
-// infrastructure-only in the first pass — fantasy logic TBD.
+// Football uses TheSportsDB (same as cricket). Optional match fields are
+// passed through only when the provider supplies them.
 
 /**
  * Returns football overview for today/yesterday/tomorrow.
- * Infrastructure only — returns { live: [], upcoming: [], lastPlayed: null }
- * until the football provider is fully wired.
  */
 export async function fetchFootballOverview() {
   const key = "football:overview";
@@ -467,7 +465,7 @@ export async function fetchFootballOverview() {
 
   const promise = safeCall(
     () => footballProvider.getLeagueOverview(),
-    { live: [], upcoming: [], lastPlayed: null },
+    { live: [], upcoming: [], finished: [], lastPlayed: null },
     "fetchFootballOverview"
   ).then((result) => {
     OVERVIEW_IN_FLIGHT.delete(key);
@@ -476,7 +474,7 @@ export async function fetchFootballOverview() {
   }).catch((err) => {
     OVERVIEW_IN_FLIGHT.delete(key);
     console.error("[api] fetchFootballOverview failed:", err?.message ?? err);
-    return { live: [], upcoming: [], lastPlayed: null };
+    return { live: [], upcoming: [], finished: [], lastPlayed: null };
   });
 
   OVERVIEW_IN_FLIGHT.set(key, promise);
@@ -491,5 +489,16 @@ export async function fetchFootballGamesByDate(dateStr) {
     () => footballProvider.getGamesByDate(dateStr),
     [],
     `fetchFootballGamesByDate(${dateStr})`
+  );
+}
+
+/**
+ * Full football match detail by TheSportsDB event ID.
+ */
+export async function fetchFootballGame(gameId) {
+  return safeCall(
+    () => footballProvider.getGame(gameId),
+    null,
+    `fetchFootballGame(${gameId})`
   );
 }
