@@ -1,7 +1,7 @@
 # FantasyIQ — Current Status
 
-**Last updated:** 2026-08-01 (Session 8 — Task 1 complete)
-**HEAD:** `dc26f0306e27eed3779f88f4542d7d4ed6d9da06`
+**Last updated:** 2026-08-01 (Session 9 — Task 2 complete)
+**HEAD:** `0ee43721cfb975fd5b70a1613d932b54c3d5f1c7`
 **Repo:** https://github.com/giffyshani-jpg/FantasyIQ
 
 ## Running
@@ -30,11 +30,64 @@ Note: `PORT` and `BASE_PATH` are **required** for both dev and build — vite.co
 - **Cricket box score — "Player statistics unavailable from current provider." shown when no stats** ✅ Session 6
 - **Football live mode — Live Now / Upcoming / Finished, league grouping, logos, details, and optional match events** ✅ Session 8 (`dc26f0306e27eed3779f88f4542d7d4ed6d9da06`)
 - Football match details route — `/football/:leagueId/game/:id` ✅ Session 8
+- **Football fantasy scoring engine and optimizer route** ✅ Session 9 (`0ee4372`)
+- Football optimizer validates XI size, positions, formation, team limit, Captain/VC, and credits only when provider credits exist ✅
+- Football optimizer shows an explicit unavailable state when real lineup/player statistics are missing ✅
 - All individual league pages (NBA, WNBA, NBL, NZNBL, FIBA, NBA Summer)
 - Box score, optimizer, play-by-play, player comparison, player detail
 - AI Fantasy Coach (12 named picks with data-backed explanations)
 - **Cricket match details pipeline fully reliable** — opening any schedule match
   never shows UNK vs UNK or Unknown teams (Session 5 fix)
+
+---
+
+## Session 9 — Football Fantasy Optimizer (2026-08-01)
+
+### Task 2 — Football Fantasy Optimizer
+**Code commit:** `0ee43721cfb975fd5b70a1613d932b54c3d5f1c7`
+
+Implemented:
+
+- Added football-specific player/stat types with optional provider fields.
+- Added a football scoring engine independent from basketball and cricket.
+- Encoded the publicly accessible FantasyGo football scoring table:
+  - appearance and 60-minute points
+  - match win
+  - position-based goals
+  - assists, clean sheets, goals conceded
+  - goalkeeper saves and penalty saves
+  - midfielder tackles and chances created
+  - forward shots on target
+  - cards, own goals, penalties, and direct free-kick goals
+  - Captain ×2 and Vice Captain ×1.5
+- Added formation support for 4-4-2, 4-3-3, 3-4-3, 3-5-2, 4-5-1, 5-3-2, and 5-4-1.
+- Added position, XI-size, max-seven-per-team, Captain/VC, and optional-budget validation.
+- Added provider-backed Auto-Pick logic that selects the strongest valid XI only from real players with real provider statistics.
+- Added `/football/:leagueId/game/:id/optimizer`.
+- Added an optimizer link from football match details.
+- Added normalization for optional lineup/stat payloads if TheSportsDB supplies them in the future.
+- No synthetic players, ratings, statistics, or credits are generated.
+
+### Credits research
+
+Public checks were performed for Fantasy11, FantasyWala, Dafa Fantasy, Vision11, My11Circle Football, and other public fantasy-football sources. No reliable, freely accessible match-specific football credit feed was verified. Existing repository integrations are cricket-specific and were not reused for football. The optimizer therefore does not show a budget or invent credit values unless every player has provider-supplied credits.
+
+### Current provider limitation
+
+TheSportsDB free football events currently return match/event fields but no lineup, positions, player statistics, or fantasy credits. With the current provider response, the optimizer correctly displays “Football lineup unavailable” and does not auto-pick an XI.
+
+| Check | Result |
+|---|---|
+| TypeScript | ✅ 0 errors |
+| Production build | ✅ success; existing sourcemap/chunk warnings only |
+| Dev route smoke check | ✅ football optimizer route returned HTTP 200 on an isolated port |
+| Root documentation duplicates | ✅ none; `docs/` is the only documentation folder |
+| Code pushed | ✅ `0ee43721cfb975fd5b70a1613d932b54c3d5f1c7` |
+
+**Remaining football limitations:**
+- A provider with real football lineups, positions, and player match statistics is still required before Auto-Pick can produce a usable XI.
+- No reliable free football fantasy-credit source was verified, so budget validation remains disabled until provider credits exist.
+- The FantasyGo rules reference is public but is not claimed to be official Fantasy11 scoring; it is documented as the source used for the engine until the requested official rules are available.
 
 ---
 

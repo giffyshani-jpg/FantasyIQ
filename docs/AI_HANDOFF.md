@@ -2,8 +2,44 @@
 
 ## Latest Session Summary
 
-Session 8 — Task 1 (Football Live Mode) complete — 2026-08-01.
-Tasks 2 (Football Fantasy Engine), 3 (Football Optimizer), and 4 (Basketball AI Analysis) are not started.
+Session 9 — Task 2 (Football Fantasy Optimizer) complete — 2026-08-01.
+Task 3 (football provider/data expansion) and Task 4 (Basketball AI Analysis) are not started.
+
+---
+
+## Session 9 Changes
+
+### Task 2 — Football Fantasy Optimizer
+**Code commit:** `0ee43721cf975fd5b70a1613d932b54c3d5f1c7`
+
+Implemented:
+
+- Added provider-backed football player and optional match-stat types.
+- Added `football-scoring.ts`, an engine independent from basketball and cricket.
+- Used the public FantasyGo football scoring reference:
+  `https://fantasygo.gitbook.io/knowledge-base/rules-and-how-to-play/fantasy-football-soccer/scoring-rules`
+- Supports appearance, 60-minute, match win, position-based goals, assists, clean sheets, goals conceded, goalkeeper saves and penalty saves, midfielder tackles and chances created, forward shots on target, cards, own goals, penalties, and direct free-kick goals.
+- Captain is ×2 and Vice Captain is ×1.5.
+- Supports formations 4-4-2, 4-3-3, 3-4-3, 3-5-2, 4-5-1, 5-3-2, and 5-4-1.
+- Validates XI size, position counts, maximum seven players per team, Captain/VC membership and uniqueness, and budget only when provider credits exist.
+- `autoPickFootballLineup()` considers only real provider players with real provider statistics.
+- Added `/football/:leagueId/game/:id/optimizer` and a match-details link.
+- Provider normalization accepts optional lineup/stat payloads but never fills missing values.
+
+### Credits and no-fabrication behavior
+
+Fantasy11, FantasyWala, Dafa Fantasy, Vision11, My11Circle Football, and other public football-fantasy sources were checked. No reliable, freely accessible match-specific football credit feed was verified. Existing FantasyWala/Calc11/Dafa integrations are cricket-specific and were not reused for football.
+
+TheSportsDB's current free football event payload contains match/event fields but no lineup, positions, player statistics, or fantasy credits. The optimizer therefore renders an explicit unavailable state and does not generate an XI, player ratings, points, or credits from placeholders.
+
+### Verification
+
+- TypeScript: ✅ 0 errors
+- Production build: ✅ success; existing sourcemap/chunk warnings only
+- Optimizer route smoke check: ✅ HTTP 200 on an isolated dev server
+- Code commit pushed: ✅ `0ee43721cf975fd5b70a1613d932b54c3d5f1c7`
+
+**Next football dependency:** a reliable provider for real football lineups, positions, player match statistics, and, if available, credits is required before Auto-Pick can produce a usable XI. Do not start another feature in this session.
 
 ---
 
@@ -144,7 +180,8 @@ applyLineup({ playerIds: finalIds, captainId: autoCaptainId, viceCaptainId: auto
 /              → Home (3 sport hub cards)
 /basketball    → BasketballPage (NBA + WNBA sub-sections)
 /cricket       → CricketSchedule (Recent / Today / Tomorrow tabs)
-/football      → FootballPage (live scores wired; optimizer TBD — Task 2)
+/football      → FootballPage (live scores and match centre)
+/football/:leagueId/game/:id/optimizer → FootballOptimizer (provider-backed when real lineup/stats exist)
 /:league       → LeagueGames (nba, wnba, nbl, nznbl, fiba, nba-summer)
 /:league/game/:id              → BoxScore
 /:league/game/:id/optimizer    → FantasyOptimizer (basketball)
@@ -202,14 +239,15 @@ artifacts/hoopiq/
       cricket-ai-intelligence.ts  ← AI Match Intelligence + weather heuristic
       ai-player-rating.ts     ← per-player AI rating + PlayerBadge classification
       provider-manager.ts     — createProviderManager() — not yet wired into api.js
-      [MISSING] football-types.ts   ← needed for Task 2
-      [MISSING] football-scoring.ts ← needed for Task 2
+      football-types.ts        ← provider-backed football match/player types
+      football-scoring.ts      ← football scoring, formations, validation, Auto-Pick
     pages/
       cricket-schedule.tsx    — /cricket — Recent/Today/Tomorrow tabs
       cricket-box-score.tsx   — BattingCard(SR) + BowlingCard(Econ) + FieldingCard
       cricket-optimizer.tsx   — DetectedFormatCard + cricket-only scoring + Auto-Pick
       fantasy-optimizer.tsx   — basketball optimizer; Auto Pick assigns C + VC
-      football.tsx            — /football — live scores wired; optimizer TBD
+      football.tsx            — /football — live scores and match centre
+      football-optimizer.tsx  — /football/:leagueId/game/:id/optimizer
     components/
       cricket-match-intelligence.tsx  ← AI Insights Panel + Captain/VC + Estimated weather
 ```
@@ -238,6 +276,7 @@ artifacts/hoopiq/
 20. **`FieldingCard` does NOT fabricate** — only renders when real `CricketFieldingStats` exists; FPTS from `pts.fielding` breakdown only.
 21. **`football.tsx` must call `fetchFootballOverview()`** — never revert to the setTimeout stub. The provider is fully wired.
 22. **Football scoring is SEPARATE from basketball and cricket** — when `football-scoring.ts` is created (Task 2), it must not import or call cricket/basketball scoring functions.
+23. **Football optimizer never fabricates** — no real lineup/player statistics means no Auto-Pick, ratings, points, or credits; render the unavailable state instead.
 
 ### Dev Commands
 ```bash

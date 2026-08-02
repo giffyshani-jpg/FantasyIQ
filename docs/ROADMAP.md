@@ -77,10 +77,11 @@
 - [ ] **Injury report timestamp** — show when ESPN last updated injury report
 
 ### Football
-- [ ] **Live scores** via TheSportsDB or LiveScore API
-- [ ] **Fantasy football logic** (starting XI, formation, captain)
+- [x] **Live scores** via TheSportsDB
+- [x] **Fantasy football logic foundation** (scoring engine, formations, position/team validation, Captain/VC, provider-backed Auto-Pick path)
+- [ ] **Real football lineup/statistics provider** (required before a usable XI can be generated; TheSportsDB free events omit these fields)
 - [ ] **Auto-discover active competitions** (seasonal)
-- [ ] **Detailed match page** — lineup, match events, live score
+- [x] **Detailed match page** — live score and provider-supplied match events
 
 ---
 

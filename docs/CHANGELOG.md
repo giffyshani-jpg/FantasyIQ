@@ -4,6 +4,33 @@ All notable changes are documented here in reverse-chronological order.
 
 ---
 
+## [0ee4372] — Football Fantasy Optimizer (August 1, 2026)
+
+### Added
+
+- Football-only fantasy scoring engine based on the public FantasyGo football scoring reference.
+- Provider-backed football player/stat types with optional fields.
+- Formation validation for 4-4-2, 4-3-3, 3-4-3, 3-5-2, 4-5-1, 5-3-2, and 5-4-1.
+- XI-size, position, maximum-seven-per-team, Captain/VC, and optional-budget validation.
+- Auto-Pick logic that considers only real players with provider statistics.
+- Football optimizer route: `/football/:leagueId/game/:id/optimizer`.
+- Football match-details link to the optimizer.
+
+### No-fabrication behavior
+
+- TheSportsDB free football events currently contain no lineup, positions, player statistics, or fantasy credits.
+- The optimizer shows an explicit unavailable state instead of generating fake players, ratings, points, or credits.
+- No reliable free football-credit feed was verified for Fantasy11, FantasyWala, Dafa Fantasy, Vision11, My11Circle Football, or other checked public sources; budget validation is disabled until real credits are supplied.
+
+### Verification
+
+- TypeScript: passed with 0 errors.
+- Production build: passed; only existing sourcemap/chunk-size warnings remain.
+- Optimizer route smoke test: HTTP 200.
+- Code commit pushed: `0ee43721cf975fd5b70a1613d932b54c3d5f1c7`.
+
+---
+
 ## [9e8f22d] — Bug-Fix Session (July 28, 2026)
 
 ### Bug Fixes
