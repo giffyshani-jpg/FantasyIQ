@@ -9,6 +9,7 @@ import BasketballPage from './pages/basketball';
 import CricketSchedule from './pages/cricket-schedule';
 import FootballPage from './pages/football';
 import FootballMatchDetails from './pages/football-match-details';
+import FootballOptimizer from './pages/football-optimizer';
 import LeagueGames from './pages/league-games';
 import BoxScore from './pages/box-score';
 import FantasyOptimizer from './pages/fantasy-optimizer';
@@ -29,6 +30,7 @@ function Router() {
       <Route path="/basketball" component={BasketballPage} />
       <Route path="/cricket" component={CricketSchedule} />
       <Route path="/football" component={FootballPage} />
+      <Route path="/football/:leagueId/game/:id/optimizer" component={FootballOptimizer} />
       <Route path="/football/:leagueId/game/:id" component={FootballMatchDetails} />
 
       {/* ── Cricket routes ────────────────────────────────────────────────

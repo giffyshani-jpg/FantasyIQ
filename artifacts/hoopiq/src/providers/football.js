@@ -75,6 +75,88 @@ function optionalText(...values) {
   return value ? value.trim() : null;
 }
 
+function mapFootballPosition(...values) {
+  const position = optionalText(...values)?.toLowerCase() ?? "";
+  if (position === "gk" || position.includes("goal") || position.includes("keeper")) return "GK";
+  if (position === "cb" || position === "lb" || position === "rb" || position.includes("def")) return "DEF";
+  if (position === "cm" || position === "dm" || position === "am" || position.includes("mid")) return "MID";
+  if (position === "fw" || position === "st" || position.includes("forward") || position.includes("striker")) return "FWD";
+  return null;
+}
+
+function parseMaybeJson(value) {
+  if (typeof value !== "string") return value;
+  try { return JSON.parse(value); } catch { return null; }
+}
+
+function normalizeFootballPlayer(raw, team) {
+  if (!raw || typeof raw !== "object") return null;
+  const id = optionalText(raw.idPlayer, raw.id, raw.playerId);
+  const name = optionalText(raw.strPlayer, raw.playerName, raw.name);
+  if (!id || !name) return null;
+  const number = (...keys) => optionalNumber(...keys.map((key) => raw[key]));
+  const cleanSheet = number("intCleanSheet", "cleanSheet", "isCleanSheet");
+  const stats = {
+    minutes: number("intMinutes", "minutes"),
+    goals: number("intGoals", "goals"),
+    assists: number("intAssists", "assists"),
+    cleanSheet: cleanSheet === null ? null : cleanSheet > 0,
+    goalsConceded: number("intGoalsConceded", "goalsConceded"),
+    saves: number("intSaves", "saves"),
+    penaltySaves: number("intPenaltySaves", "penaltySaves"),
+    tackles: number("intTackles", "tackles"),
+    chancesCreated: number("intChancesCreated", "chancesCreated"),
+    shotsOnTarget: number("intShotsOnTarget", "shotsOnTarget"),
+    yellowCards: number("intYellowCards", "yellowCards"),
+    redCards: number("intRedCards", "redCards"),
+    ownGoals: number("intOwnGoals", "ownGoals"),
+    penaltiesWon: number("intPenaltiesWon", "penaltiesWon"),
+    penaltiesConceded: number("intPenaltiesConceded", "penaltiesConceded"),
+    directFreeKickGoals: number("intDirectFreeKickGoals", "directFreeKickGoals"),
+  };
+  return {
+    id: `tsdb-football-player:${id}`,
+    name,
+    shortName: optionalText(raw.strPlayerShort, raw.shortName),
+    position: mapFootballPosition(raw.strPosition, raw.position, raw.strRole),
+    teamId: team.id,
+    teamName: team.name,
+    teamAbbreviation: team.abbreviation,
+    isStarter: raw.strSubstitute === "Yes" ? false : raw.strSubstitute === "No" ? true : null,
+    photoUrl: optionalText(raw.strCutout, raw.strThumb),
+    credits: null,
+    stats,
+    statsAvailable: Object.values(stats).some((value) => value !== null),
+    source: "thesportsdb",
+  };
+}
+
+function extractFootballPlayers(ev, homeTeam, awayTeam) {
+  const raw = parseMaybeJson(ev.lineup ?? ev.lineups ?? ev.players ?? ev.strLineup);
+  if (!raw) return [];
+  const players = [];
+  const add = (items, team) => {
+    if (!Array.isArray(items)) return;
+    for (const item of items) {
+      const player = normalizeFootballPlayer(item, team);
+      if (player) players.push(player);
+    }
+  };
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      const homeFlag = String(item?.strHome ?? item?.home ?? "").toLowerCase();
+      add([item], homeFlag === "yes" || homeFlag === "true" ? homeTeam : awayTeam);
+    }
+  } else if (typeof raw === "object") {
+    add(raw.home ?? raw.homeTeam ?? raw.strHomeTeam, homeTeam);
+    add(raw.away ?? raw.awayTeam ?? raw.strAwayTeam, awayTeam);
+    add(raw.players, homeTeam);
+  }
+  return players.filter((player, index, all) =>
+    all.findIndex((candidate) => candidate.id === player.id) === index
+  );
+}
+
 function mapFootballStatus(strStatus) {
   const s = (strStatus || "").toLowerCase().trim();
   if (s === "ft" || s === "aet" || s === "pen" || s.includes("finished")) return "final";
@@ -96,36 +178,37 @@ function normalizeFootballEvent(ev) {
     }
 
     const status = mapFootballStatus(ev.strStatus);
+    const homeTeam = {
+      id: String(ev.idHomeTeam || "h"),
+      name: ev.strHomeTeam || "Home",
+      abbreviation: makeAbbreviation(ev.strHomeTeam),
+      score: ev.intHomeScore != null ? String(ev.intHomeScore) : null,
+      badgeUrl: ev.strHomeTeamBadge || null,
+      yellowCards: optionalNumber(ev.intHomeYellowCards, ev.strHomeYellowCards),
+      redCards: optionalNumber(ev.intHomeRedCards, ev.strHomeRedCards),
+      penaltyScore: optionalNumber(ev.intHomeScorePenalties, ev.intHomePenalties, ev.strHomeScorePenalties),
+      extraTimeScore: optionalNumber(ev.intHomeScoreExtra, ev.intHomeScoreExtraTime, ev.strHomeScoreExtraTime),
+    };
+    const awayTeam = {
+      id: String(ev.idAwayTeam || "a"),
+      name: ev.strAwayTeam || "Away",
+      abbreviation: makeAbbreviation(ev.strAwayTeam),
+      score: ev.intAwayScore != null ? String(ev.intAwayScore) : null,
+      badgeUrl: ev.strAwayTeamBadge || null,
+      yellowCards: optionalNumber(ev.intAwayYellowCards, ev.strAwayYellowCards),
+      redCards: optionalNumber(ev.intAwayRedCards, ev.strAwayRedCards),
+      penaltyScore: optionalNumber(ev.intAwayScorePenalties, ev.intAwayPenalties, ev.strAwayScorePenalties),
+      extraTimeScore: optionalNumber(ev.intAwayScoreExtra, ev.intAwayScoreExtraTime, ev.strAwayScoreExtraTime),
+    };
+    const players = extractFootballPlayers(ev, homeTeam, awayTeam);
 
     return {
       id: `tsdb-football:${ev.idEvent}`,
       leagueId: ev.idLeague,
       leagueName: ev.strLeague || "Football",
       leagueBadgeUrl: ev.strLeagueBadge || null,
-      homeTeam: {
-        id: String(ev.idHomeTeam || "h"),
-        name: ev.strHomeTeam || "Home",
-        abbreviation: makeAbbreviation(ev.strHomeTeam),
-        score: ev.intHomeScore != null ? String(ev.intHomeScore) : null,
-        badgeUrl: ev.strHomeTeamBadge || null,
-        yellowCards: optionalNumber(ev.intHomeYellowCards, ev.strHomeYellowCards),
-        redCards: optionalNumber(ev.intHomeRedCards, ev.strHomeRedCards),
-        penaltyScore: optionalNumber(ev.intHomeScorePenalties, ev.intHomePenalties, ev.strHomeScorePenalties),
-        extraTimeScore: optionalNumber(ev.intHomeScoreExtra, ev.intHomeScoreExtraTime, ev.strHomeScoreExtraTime),
-        players: [],
-      },
-      awayTeam: {
-        id: String(ev.idAwayTeam || "a"),
-        name: ev.strAwayTeam || "Away",
-        abbreviation: makeAbbreviation(ev.strAwayTeam),
-        score: ev.intAwayScore != null ? String(ev.intAwayScore) : null,
-        badgeUrl: ev.strAwayTeamBadge || null,
-        yellowCards: optionalNumber(ev.intAwayYellowCards, ev.strAwayYellowCards),
-        redCards: optionalNumber(ev.intAwayRedCards, ev.strAwayRedCards),
-        penaltyScore: optionalNumber(ev.intAwayScorePenalties, ev.intAwayPenalties, ev.strAwayScorePenalties),
-        extraTimeScore: optionalNumber(ev.intAwayScoreExtra, ev.intAwayScoreExtraTime, ev.strAwayScoreExtraTime),
-        players: [],
-      },
+      homeTeam: { ...homeTeam, players: players.filter((player) => player.teamId === homeTeam.id) },
+      awayTeam: { ...awayTeam, players: players.filter((player) => player.teamId === awayTeam.id) },
       startTimeIso,
       status,
       statusDetail: optionalText(ev.strStatus),
@@ -137,6 +220,9 @@ function normalizeFootballEvent(ev) {
         ? `${ev.strHomeTeam} ${ev.intHomeScore ?? "?"} - ${ev.intAwayScore ?? "?"} ${ev.strAwayTeam}`
         : null,
       league: "football",
+      players,
+      lineupAvailable: players.length > 0,
+      playerStatsAvailable: players.some((player) => player.statsAvailable),
     };
   } catch {
     return null;

@@ -116,6 +116,11 @@ export default function FootballMatchDetails() {
           <>
             <MatchSummary game={game} />
             <div className="mt-4"><MatchDetails game={game} /></div>
+            <Link href={`/football/${game.leagueId}/game/${encodeURIComponent(game.id)}/optimizer`}>
+              <div className="mt-5 rounded-xl border border-green-700/40 bg-green-950/20 px-4 py-3 text-center text-xs font-black text-green-300">
+                Open Football Optimizer
+              </div>
+            </Link>
             <Link href="/football">
               <div className="mt-5 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 hover:text-foreground transition-colors">Back to live football</div>
             </Link>
