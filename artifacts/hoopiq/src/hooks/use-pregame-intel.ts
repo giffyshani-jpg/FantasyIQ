@@ -48,6 +48,10 @@ type PlayerMetrics = {
   avgMinutesLast10: number | null;
   avgFptsLast5: number | null;
   avgFptsLast10: number | null;
+  avgFptsLast20: number | null;
+  seasonAvgFpts: number | null;
+  homeAvgFpts: number | null;
+  awayAvgFpts: number | null;
   minutesTrend: "up" | "down" | "flat" | null;
   formTrend: "Hot" | "Average" | "Cold";
   consistency: "Consistent" | "Somewhat Consistent" | "Volatile" | null;
@@ -88,6 +92,10 @@ async function fetchPlayerMetrics(playerId: string, league: import("../lib/types
     avgMinutesLast10: metrics.avgMinutesLast10,
     avgFptsLast5: metrics.avgFptsLast5,
     avgFptsLast10: metrics.avgFptsLast10,
+    avgFptsLast20: metrics.avgFptsLast20,
+    seasonAvgFpts: metrics.seasonAvgFpts,
+    homeAvgFpts: metrics.homeAvgFpts,
+    awayAvgFpts: metrics.awayAvgFpts,
     minutesTrend: metrics.minutesTrend,
     formTrend: metrics.trend,
     consistency: metrics.consistency,
@@ -196,6 +204,7 @@ export function usePregameIntel(game: Game | null | undefined, league: import(".
           teamId,
           teamAbbreviation,
           status,
+          isHome: game!.homeTeam.id === teamId,
           injuryStatus: injury?.status,
           avgMinutesLast5: metrics?.avgMinutesLast5 ?? null,
           avgMinutesLast10: metrics?.avgMinutesLast10 ?? null,
@@ -203,6 +212,10 @@ export function usePregameIntel(game: Game | null | undefined, league: import(".
           minutesTrend: metrics?.minutesTrend ?? null,
           avgFptsLast5: metrics?.avgFptsLast5 ?? null,
           avgFptsLast10: metrics?.avgFptsLast10 ?? null,
+          avgFptsLast20: metrics?.avgFptsLast20 ?? null,
+          seasonAvgFpts: metrics?.seasonAvgFpts ?? null,
+          homeAvgFpts: metrics?.homeAvgFpts ?? null,
+          awayAvgFpts: metrics?.awayAvgFpts ?? null,
           formTrend: metrics?.formTrend ?? "Average",
           consistency: metrics?.consistency ?? null,
           recommendation: computeRecommendation({
@@ -228,6 +241,7 @@ export function usePregameIntel(game: Game | null | undefined, league: import(".
           teamId,
           teamAbbreviation,
           status,
+          isHome: game!.homeTeam.id === teamId,
           injuryStatus: injury.status,
           avgMinutesLast5: metrics?.avgMinutesLast5 ?? null,
           avgMinutesLast10: metrics?.avgMinutesLast10 ?? null,
@@ -235,6 +249,10 @@ export function usePregameIntel(game: Game | null | undefined, league: import(".
           minutesTrend: metrics?.minutesTrend ?? null,
           avgFptsLast5: metrics?.avgFptsLast5 ?? null,
           avgFptsLast10: metrics?.avgFptsLast10 ?? null,
+          avgFptsLast20: metrics?.avgFptsLast20 ?? null,
+          seasonAvgFpts: metrics?.seasonAvgFpts ?? null,
+          homeAvgFpts: metrics?.homeAvgFpts ?? null,
+          awayAvgFpts: metrics?.awayAvgFpts ?? null,
           formTrend: metrics?.formTrend ?? "Average",
           consistency: metrics?.consistency ?? null,
           recommendation: computeRecommendation({

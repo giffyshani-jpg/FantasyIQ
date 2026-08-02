@@ -18,6 +18,7 @@ import PlayerComparison from './pages/player-comparison';
 import PlayerDetail from './pages/player-detail';
 import CricketBoxScore from './pages/cricket-box-score';
 import CricketOptimizer from './pages/cricket-optimizer';
+import BasketballAnalysis from './pages/basketball-analysis';
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ function Router() {
       <Route path="/football" component={FootballPage} />
       <Route path="/football/:leagueId/game/:id/optimizer" component={FootballOptimizer} />
       <Route path="/football/:leagueId/game/:id" component={FootballMatchDetails} />
+      <Route path="/:league/game/:id/analysis" component={BasketballAnalysis} />
 
       {/* ── Cricket routes ────────────────────────────────────────────────
           These MUST appear before the generic /:league routes so that

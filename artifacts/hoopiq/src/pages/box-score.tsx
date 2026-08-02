@@ -6,6 +6,7 @@ import { PlayerStatusBadges } from "../components/player-status-badges";
 import { RecentFormBadge } from "../components/recent-form-badge";
 import { PlayerDetailSheet } from "../components/player-detail-sheet";
 import { PregameIntelPanel } from "../components/pregame-intel-panel";
+import { BasketballPredictionPanel } from "../components/basketball-prediction-panel";
 import { calculateFantasyPoints } from "../lib/stats";
 import { useComparisonSelection } from "../hooks/use-comparison-selection";
 import { useFavorites } from "../hooks/use-favorites";
@@ -351,6 +352,13 @@ export default function BoxScore() {
               Play-by-Play
             </div>
           </Link>
+          {game.status === "final" && (
+            <Link href={`/${game.league}/game/${game.id}/analysis`}>
+              <div className="rounded-xl bg-secondary text-secondary-foreground border border-secondary-border py-2.5 px-4 flex items-center justify-center gap-2 text-sm font-semibold cursor-pointer active:scale-[0.98] transition-transform">
+                Post-game AI Analysis
+              </div>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -358,7 +366,10 @@ export default function BoxScore() {
           table while the game hasn't started, so users see who's likely
           starting/injured without leaving this page. */}
       {game.status === "scheduled" ? (
-        <PregameIntelPanel game={game} league={league} lastUpdated={lastUpdated} />
+        <>
+          <BasketballPredictionPanel game={game} league={league} />
+          <PregameIntelPanel game={game} league={league} lastUpdated={lastUpdated} />
+        </>
       ) : (
         <>
       {/* Team Tabs */}
