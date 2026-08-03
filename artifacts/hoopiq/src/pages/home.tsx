@@ -275,6 +275,19 @@ export default function Home() {
       <div className="p-4 sm:p-5 flex flex-col gap-4 pb-12">
         <PageHeader anyLoading={anyLoading} totalLive={totalLive} />
 
+        <Link
+          href="/smart-screenshot-optimizer"
+          className="group rounded-2xl border border-primary/25 bg-primary/[0.07] p-4 transition-colors hover:bg-primary/[0.12]"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-foreground">Smart Screenshot Optimizer <span className="text-[10px] font-black uppercase tracking-wider text-primary">Beta</span></p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground/70">Read and review fantasy-app player data from screenshots.</p>
+            </div>
+            <span className="text-xs font-bold text-primary transition-transform group-hover:translate-x-0.5">Open →</span>
+          </div>
+        </Link>
+
         {/* Global live banner */}
         {!anyLoading && totalLive > 0 && (
           <LiveNowBanner totalLive={totalLive} sports={liveSports} />
