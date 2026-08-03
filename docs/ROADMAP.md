@@ -9,7 +9,7 @@
 - [x] Full box score with player stats (PTS, REB, AST, STL, BLK, TO, MIN)
 - [x] Live polling every 5s for in-progress games
 - [x] Play-by-play view
-- [x] Player comparison (up to 2 players side-by-side)
+- [x] Player comparison — AI Head-to-Head Intelligence (Projected FPTS, Confidence, Risk, L5/L10 avg, Minutes Trend, Recent Form, Injury Status, Home/Away Split; winner highlighting; Better Fantasy Pick / Safer Pick / Higher Upside / AI Explanation summary)
 - [x] Player detail sheet (game log chart, recent form)
 - [x] Pre-Game Intelligence panel (starter status, projected minutes, injury report, back-to-back, blowout risk)
 - [x] Fantasy Optimizer — 8-player lineup (max 4 per team), C/VC roles, budget management, auto-pick, OCR import

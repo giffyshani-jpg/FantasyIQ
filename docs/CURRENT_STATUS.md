@@ -1,7 +1,7 @@
 # FantasyIQ — Current Status
 
-**Last updated:** 2026-08-03 (Session 10 — Basketball AI Prediction and Analysis complete)
-**HEAD:** `f6b90b8`
+**Last updated:** 2026-08-03 (Session 11 — Player Comparison AI Head-to-Head Intelligence complete)
+**HEAD:** `fb7c62f`
 **Repo:** https://github.com/giffyshani-jpg/FantasyIQ
 
 ## Running
@@ -36,11 +36,54 @@ Note: `PORT` and `BASE_PATH` are **required** for both dev and build — vite.co
 - **Basketball AI pregame prediction** ✅ Session 10 (`f6b90b8`)
 - **Basketball post-game AI vs perfect-team analysis** ✅ Session 10 (`f6b90b8`)
 - Basketball prediction evaluations are stored locally as the foundation for future learning ✅
+- **Player Comparison AI Head-to-Head Intelligence** ✅ Session 11 (`fb7c62f`)
+  - Side-by-side: Projected FPTS, Confidence, Risk, Last 5 Avg, Last 10 Avg, Minutes Trend, Recent Form, Injury Status, Home/Away Split, Head-to-Head History
+  - Category winner highlighting; Unavailable shown when data absent
+  - Summary cards: Better Fantasy Pick, Safer Pick, Higher Upside
+  - AI Explanation narrative from real provider signals
 - All individual league pages (NBA, WNBA, NBL, NZNBL, FIBA, NBA Summer)
 - Box score, optimizer, play-by-play, player comparison, player detail
 - AI Fantasy Coach (12 named picks with data-backed explanations)
 - **Cricket match details pipeline fully reliable** — opening any schedule match
   never shows UNK vs UNK or Unknown teams (Session 5 fix)
+
+---
+
+## Session 11 — Player Comparison AI Head-to-Head Intelligence (2026-08-03)
+
+### Added
+
+- New `use-player-comparison-intel.ts` hook: fetches real ESPN game-log metrics for the two selected players and, for scheduled games, derives projected FPTS, confidence, and risk using the same transparent heuristics as the basketball prediction pipeline.
+- `HeadToHeadPanel` component in `player-comparison.tsx`: shows when exactly 2 players are selected; existing box-score stat grid remains for 2–4 players.
+- Side-by-side intelligence rows:
+  - Projected FPTS (pregame only, else Unavailable)
+  - Confidence (pregame only, else Unavailable)
+  - Risk (Low / Medium / High, pregame only, else Unavailable)
+  - Last 5 Average
+  - Last 10 Average
+  - Minutes Trend
+  - Recent Form
+  - Injury Status
+  - Home / Away Split
+  - Head-to-Head History (always Unavailable — no provider supplies this)
+- Per-row winner highlighting; ties shown distinctly; Unavailable rendered in muted italic.
+- Score tally in the panel header: "Player A N–M Player B".
+- Summary section: Better Fantasy Pick, Safer Pick, Higher Upside, AI Explanation.
+- No fabricated data: every null field renders as "Unavailable".
+- Optimizer, prediction engine, and learning engine are not modified.
+
+### Limitations
+
+- Head-to-head history is always Unavailable — no current provider supplies player-vs-opponent historical records.
+- Projected FPTS, Confidence, and Risk are only available for scheduled games (pregame signals are meaningless once the game starts).
+- Usage, opponent defense, pace, and rest days remain unavailable until a provider supplies those fields.
+
+### Verification
+
+- TypeScript: passed with 0 errors.
+- Production build: passed; existing sourcemap/chunk-size warnings only.
+- Runtime smoke check: home and `/nba/game/test/compare` routes returned HTTP 200.
+- Code commit pushed: `fb7c62f`.
 
 ---
 

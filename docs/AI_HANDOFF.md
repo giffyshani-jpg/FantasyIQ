@@ -2,9 +2,34 @@
 
 ## Latest Session Summary
 
-Session 10 — Basketball AI Prediction and Analysis complete — 2026-08-03.
+Session 11 — Player Comparison AI Head-to-Head Intelligence complete — 2026-08-03.
 
-The latest verified code commit is `f6b90b8`. Documentation is maintained in a separate commit.
+The latest verified code commit is `fb7c62f`. Documentation is maintained in a separate commit.
+
+## Session 11 Changes
+
+### Player Comparison AI Head-to-Head Intelligence
+
+Implemented:
+
+- New `src/hooks/use-player-comparison-intel.ts` hook: fetches real ESPN game-log metrics for the two selected players and, for scheduled games, derives projected FPTS, confidence, and risk using the same transparent heuristics as the basketball prediction pipeline (no fabrication, no modification of the prediction engine).
+- Rewrote `src/pages/player-comparison.tsx`: added `HeadToHeadPanel` that appears when exactly 2 players are selected; existing box-score stat grid is preserved for 2–4 players.
+- Side-by-side intelligence rows: Projected FPTS, Confidence, Risk, Last 5 Avg, Last 10 Avg, Minutes Trend, Recent Form, Injury Status, Home/Away Split, Head-to-Head History.
+- Category winner highlighting; ties shown distinctly; every null field renders as "Unavailable" — no stats fabricated.
+- Score tally in panel header showing who leads on more categories.
+- Summary section: Better Fantasy Pick, Safer Pick, Higher Upside, AI Explanation auto-generated from real provider signals.
+- Head-to-Head History always Unavailable — no current provider supplies player-vs-opponent history.
+- Projected FPTS, Confidence, Risk only available for scheduled games.
+- Optimizer, prediction engine, and learning engine untouched.
+
+### Verification
+
+- TypeScript: passed with 0 errors.
+- Production build: passed; existing sourcemap/chunk-size warnings only.
+- Runtime smoke check: home and compare routes returned HTTP 200.
+- Code commit pushed: `fb7c62f`.
+
+---
 
 ## Session 10 Changes
 

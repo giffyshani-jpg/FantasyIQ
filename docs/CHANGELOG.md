@@ -4,6 +4,33 @@ All notable changes are documented here in reverse-chronological order.
 
 ---
 
+## [fb7c62f] — Player Comparison AI Head-to-Head Intelligence (August 3, 2026)
+
+### Added
+
+- New `src/hooks/use-player-comparison-intel.ts`: fetches real ESPN game-log metrics for selected players and, for scheduled games, derives projected FPTS, confidence, and risk from the same transparent heuristics as the basketball prediction pipeline.
+- Rewrote `src/pages/player-comparison.tsx` with `HeadToHeadPanel` component: visible when exactly 2 players are selected; existing box-score stat grid preserved for 2–4 players.
+- Side-by-side comparison rows: Projected FPTS, Confidence, Risk, Last 5 Avg, Last 10 Avg, Minutes Trend, Recent Form, Injury Status, Home/Away Split, Head-to-Head History.
+- Per-row winner highlighting; ties shown distinctly; score tally in panel header.
+- Summary cards: Better Fantasy Pick, Safer Pick, Higher Upside.
+- AI Explanation narrative auto-generated from real provider signals.
+
+### No-fabrication behavior
+
+- Every null field renders as "Unavailable" — no stats, scores, or projections are fabricated.
+- Head-to-Head History is always Unavailable; no current provider supplies player-vs-opponent records.
+- Projected FPTS, Confidence, and Risk are pregame-only; they show as Unavailable once the game starts.
+- Optimizer, prediction engine, and learning engine are not modified.
+
+### Verification
+
+- TypeScript: passed with 0 errors.
+- Production build: passed; existing sourcemap/chunk-size warnings only.
+- Runtime smoke check: home and compare routes returned HTTP 200.
+- Code commit pushed: `fb7c62f`.
+
+---
+
 ## [f6b90b8] — Basketball AI Prediction and Analysis (August 3, 2026)
 
 ### Added
