@@ -4,9 +4,21 @@ import { Game, Player } from "../lib/types";
 
 /**
  * Consistent status-badge rendering shared by Box Score, Fantasy Optimizer,
- * and Player Comparison: an availability badge (OUT/GTD/Questionable/
- * Probable/DNP) plus a lineup-role badge (Starter/Bench), shown side by
- * side. Renders nothing when neither is known for this player/game.
+ * and Player Comparison.
+ *
+ * Availability badge (OUT / GTD / Questionable / Probable / DNP):
+ *   Sourced from the provider injury report or the ESPN didNotPlay flag.
+ *
+ * Lineup-role badge:
+ *   - "Confirmed Starter" / "Confirmed Bench" — ESPN's starter flag is a
+ *     boolean (lineup has been officially published).
+ *   - "Unknown" — game is scheduled but ESPN has not published the lineup yet.
+ *     Shown so the user sees "Unknown" rather than a blank, making it clear
+ *     that no data is available (not that the player is confirmed active).
+ *   - Nothing — live / final game where starter is undefined (DNP / OUT badge
+ *     already carries the full story).
+ *
+ * Never fabricates a status — every label comes directly from the provider.
  */
 export function PlayerStatusBadges({
   player,
@@ -18,7 +30,7 @@ export function PlayerStatusBadges({
   className?: string;
 }) {
   const status = inactiveStatusLabel(player, gameStatus);
-  const starter = starterBadgeLabel(player);
+  const starter = starterBadgeLabel(player, gameStatus);
 
   if (!status && !starter) return null;
 

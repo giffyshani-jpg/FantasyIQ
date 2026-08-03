@@ -12,7 +12,10 @@ export type BadgeStatus =
   | "Confirmed Starter"
   | "Confirmed Bench"
   | "Expected Starter"
-  | "Game Time Decision";
+  | "Game Time Decision"
+  // Lineup not yet announced by the provider — shown instead of blank so the
+  // user knows no data is available (not that the player is active).
+  | "Unknown";
 
 const BADGE_STYLES: Record<BadgeStatus, string> = {
   OUT: "bg-rose-500/15 text-rose-400 border-rose-500/30",
@@ -30,6 +33,9 @@ const BADGE_STYLES: Record<BadgeStatus, string> = {
   "Confirmed Bench": "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",
   "Expected Starter": "bg-sky-500/10 text-sky-400 border-sky-500/30 border-dashed",
   "Game Time Decision": "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  // Lineup not yet published — neutral muted styling so it reads as
+  // informational ("we don't know") rather than as a health concern.
+  Unknown: "bg-muted/30 text-muted-foreground/70 border-border border-dashed",
 };
 
 /** Renders nothing when the player has no status to show. */

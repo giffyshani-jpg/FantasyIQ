@@ -2,6 +2,11 @@ import { InjuryBadge, BadgeStatus } from "./injury-badge";
 import { RecommendationBadge } from "./recommendation-badge";
 import { usePregameIntel } from "../hooks/use-pregame-intel";
 import { PregamePlayerIntel, LineupStatus, TeamAvailabilitySummary, BlowoutRisk } from "../lib/pregame-intel";
+import {
+  recordLineupConfirmation,
+  getLineupConfirmedAt,
+  formatConfirmedAgo,
+} from "../lib/lineup-confirmation-cache";
 import { Game } from "../lib/types";
 
 // ── Badge helpers ─────────────────────────────────────────────────────────────
@@ -91,13 +96,23 @@ function formatTipoff(iso: string): string {
 //   • Key numbers below: Proj Min | FPTS (L5 with 🔥/❄️) | Confidence
 //   • Recommendation badge right-aligned (only when not OUT)
 //   • OUT players dimmed (opacity-60) and shown without projections
+//
+// Lineup status:
+//   • "Confirmed Starter" / "Confirmed Bench" — ESPN lineup is published;
+//     we record the first time we see this and show "Confirmed X min ago".
+//   • "Expected Starter" — heuristic from prior game (dashed badge, no timer).
+//   • "Bench" — bench role in prior game.
+//   • "Out" / "Questionable" / "Game Time Decision" — injury report labels.
 
 function PlayerIntelRow({
   player,
+  gameId,
   isHome,
   opponentAbbr,
 }: {
   player: PregamePlayerIntel;
+  /** Game ID used to key the confirmation-time cache. */
+  gameId: string;
   /** True when this player's team is the home team tonight. */
   isHome: boolean;
   /** Abbreviation of the opponent (e.g. "LAL", "BOS"). */
@@ -105,6 +120,17 @@ function PlayerIntelRow({
 }) {
   const confidence = deriveConfidence(player);
   const isOut = player.status === "Out";
+
+  // Track when a confirmed lineup was first seen in this session so we can
+  // display "Confirmed X min ago". We record on every render (the cache
+  // no-ops after the first call) so the timestamp is set as soon as the
+  // panel first renders with confirmed status.
+  const isConfirmed =
+    player.status === "Confirmed Starter" || player.status === "Confirmed Bench";
+  if (isConfirmed) {
+    recordLineupConfirmation(gameId, player.playerId);
+  }
+  const confirmedAt = isConfirmed ? getLineupConfirmedAt(gameId, player.playerId) : null;
 
   return (
     <div
@@ -120,6 +146,12 @@ function PlayerIntelRow({
             {player.name}
           </span>
           <InjuryBadge status={lineupBadgeStatus(player.status)} />
+          {/* Confirmation time — only for confirmed lineups */}
+          {confirmedAt !== null && (
+            <span className="text-[9px] text-emerald-400/80 font-medium tabular-nums">
+              Confirmed {formatConfirmedAgo(confirmedAt)}
+            </span>
+          )}
           {player.backToBack && (
             <span
               className="inline-block text-[9px] font-bold uppercase tracking-wide rounded px-1 py-0.5 border shrink-0 bg-purple-500/15 text-purple-400 border-purple-500/30"
@@ -390,6 +422,7 @@ export function PregameIntelPanel({
                   <PlayerIntelRow
                     key={p.playerId}
                     player={p}
+                    gameId={game.id}
                     isHome={false}
                     opponentAbbr={game.homeTeam.abbreviation}
                   />
@@ -414,6 +447,7 @@ export function PregameIntelPanel({
                   <PlayerIntelRow
                     key={p.playerId}
                     player={p}
+                    gameId={game.id}
                     isHome={true}
                     opponentAbbr={game.awayTeam.abbreviation}
                   />
