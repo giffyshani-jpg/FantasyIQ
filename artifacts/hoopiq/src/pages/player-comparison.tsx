@@ -15,6 +15,7 @@ import {
   ComparisonRisk,
 } from "../hooks/use-player-comparison-intel";
 import { Game, InjuryReportEntry, Player } from "../lib/types";
+import { LastUpdated } from "../components/last-updated";
 
 // ─── Local types ──────────────────────────────────────────────────────────
 
@@ -634,6 +635,7 @@ export default function PlayerComparison() {
   const league = params.league as import("../lib/types").LeagueKey;
 
   const [game, setGame] = useState<Game | null | undefined>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const comparison  = useComparisonSelection(gameId);
   const favorites   = useFavorites();
   const recentForm  = useRecentForm();
@@ -642,8 +644,13 @@ export default function PlayerComparison() {
   useEffect(() => {
     let cancelled = false;
     setGame(null);
+    setLastUpdated(null);
     fetchGameById(gameId || "", league).then((data) => {
-      if (!cancelled) setGame((data as Game | undefined) ?? undefined);
+      if (!cancelled) {
+        const loaded = (data as Game | undefined) ?? undefined;
+        setGame(loaded);
+        if (loaded) setLastUpdated(new Date());
+      }
     });
     return () => {
       cancelled = true;
@@ -736,6 +743,9 @@ export default function PlayerComparison() {
             {comparedPlayers.length}/{comparison.selectedIds.length > 0 ? comparison.selectedIds.length : "—"}{" "}
             selected
           </div>
+        </div>
+        <div className="border-b border-border bg-background px-4 py-2 text-[10px]">
+          <LastUpdated timestamp={lastUpdated} />
         </div>
 
         {comparedPlayers.length === 0 ? (

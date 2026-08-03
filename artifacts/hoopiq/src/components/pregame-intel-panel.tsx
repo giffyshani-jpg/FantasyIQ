@@ -8,6 +8,7 @@ import {
   formatConfirmedAgo,
 } from "../lib/lineup-confirmation-cache";
 import { Game } from "../lib/types";
+import { LastUpdated } from "./last-updated";
 
 // ── Badge helpers ─────────────────────────────────────────────────────────────
 
@@ -76,10 +77,6 @@ const CONFIDENCE_COLOR: Record<Confidence, string> = {
 };
 
 // ── Format helpers ────────────────────────────────────────────────────────────
-
-function formatTimestamp(date: Date): string {
-  return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-}
 
 function formatTipoff(iso: string): string {
   try {
@@ -343,9 +340,7 @@ export function PregameIntelPanel({
           {game.startTimeIso && lastUpdated && (
             <span className="text-muted-foreground/40">·</span>
           )}
-          {lastUpdated && (
-            <span className="text-muted-foreground/60">{formatTimestamp(lastUpdated)}</span>
-          )}
+          <LastUpdated timestamp={lastUpdated} />
         </div>
       </div>
 

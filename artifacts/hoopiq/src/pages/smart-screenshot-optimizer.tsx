@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import { MobileLayout } from "../components/layout";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
+import { LastUpdated } from "../components/last-updated";
 import {
   createEmptySession,
   loadScreenshotOptimizerSession,
@@ -81,7 +82,12 @@ export default function SmartScreenshotOptimizer() {
         });
         setSession((current) => {
           const screenshots = [...current.screenshots, parsed];
-          return { ...current, screenshots, players: mergeScreenshotPlayers(screenshots) };
+          return {
+            ...current,
+            screenshots,
+            players: mergeScreenshotPlayers(screenshots),
+            updatedAt: new Date().toISOString(),
+          };
         });
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : `Could not read ${file.name}.`);
@@ -153,10 +159,19 @@ export default function SmartScreenshotOptimizer() {
               <p className="text-sm font-bold">Upload screenshots</p>
               <p className="mt-1 text-xs text-muted-foreground/70">{session.screenshots.length}/{MAX_SCREENSHOTS} processed · each image is read independently</p>
             </div>
-            <Button onClick={() => fileInputRef.current?.click()} disabled={session.screenshots.length >= MAX_SCREENSHOTS || Object.keys(processing).length > 0}>
-              <Upload className="h-4 w-4" />
-              Add screenshots
-            </Button>
+            <div className="flex flex-col items-start gap-2 sm:items-end">
+              <Button onClick={() => fileInputRef.current?.click()} disabled={session.screenshots.length >= MAX_SCREENSHOTS || Object.keys(processing).length > 0}>
+                <Upload className="h-4 w-4" />
+                Add screenshots
+              </Button>
+              <LastUpdated
+                timestamp={
+                  session.screenshots.length > 0
+                    ? new Date(session.updatedAt)
+                    : null
+                }
+              />
+            </div>
           </div>
           <input
             ref={fileInputRef}
