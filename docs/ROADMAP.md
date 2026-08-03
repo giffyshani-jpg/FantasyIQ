@@ -70,7 +70,8 @@
 - [ ] **Scorecard polish** — fall of wickets, partnership data, extras
 
 ### Basketball
-- [ ] Smart Screenshot Optimizer — future enhancement; upload PG, SG, SF, PF, and C screenshots together, automatically identify each fantasy-app position, extract player names, fantasy positions, credits, and teams, merge a single player pool, match players with FantasyIQ AI projections, and build the highest-projected legal team using the salary cap, exact fantasy-app position rules, maximum players per team, Captain, and Vice Captain. Use the positions exactly as shown in the fantasy app; do not substitute real-world positions. This is documentation only and is not implemented.
+- [x] Smart Screenshot Optimizer — Phase 1 screenshot-reading foundation: upload up to five screenshots, process each independently, extract only screenshot-visible player name, fantasy-app position, credits, team, selected state, and locked state, mark low-confidence fields `Needs Review`, merge duplicates, expose an editable review table, and persist a reusable parsed fantasy-app player model. No fantasy teams are generated in Phase 1.
+- [ ] Smart Screenshot Optimizer — future Phase 2: use the reviewed parsed player model for fantasy-team generation only after exact fantasy-app position rules, salary cap, team limits, Captain, and Vice Captain behavior are specified and verified. Use positions exactly as shown in the fantasy app; do not substitute real-world positions. Do not fabricate missing player data.
 - [ ] **EuroLeague / EuroCup** (blocked: no public API)
 - [ ] **Push notifications** for live game start
 - [ ] **Multi-game DFS optimizer**

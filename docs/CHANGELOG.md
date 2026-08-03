@@ -4,6 +4,34 @@ All notable changes are documented here in reverse-chronological order.
 
 ---
 
+## [02d7fb4] — Smart Screenshot Optimizer Phase 1 (August 3, 2026)
+
+### Added
+
+- New **Smart Screenshot Optimizer (Beta)** page at `/smart-screenshot-optimizer`.
+- Home-page entry point for the beta page.
+- Upload and independent processing for up to five screenshots.
+- Reusable parsed screenshot/player model with source screenshot references and local persistence.
+- Extraction of only screenshot-visible player name, fantasy-app position, credits, team, selected state, and locked state.
+- Confidence-aware field statuses: `confirmed`, `needs_review`, and `not_shown`.
+- Duplicate-player merging across screenshots.
+- Editable review table for correcting OCR results before future optimizer phases consume the model.
+
+### Scope and no-fabrication behavior
+
+- Phase 1 does not generate fantasy teams.
+- No player, position, credit, injury, statistic, projection, selection, or lock value is invented when it is not visible in the source screenshot.
+- Existing optimizer, prediction engine, learning engine, football, and player comparison features were not modified.
+
+### Verification
+
+- TypeScript: passed with 0 errors.
+- Production build: passed; existing sourcemap/chunk-size warnings only.
+- Runtime smoke check: home and `/smart-screenshot-optimizer` routes returned the app shell successfully.
+- Code commit: `02d7fb4fa468f5b22d9ec9e89a771fd3679b82e9`.
+
+---
+
 ## [4f23913] — Lineup Status Display Improved (August 3, 2026)
 
 ### Added
