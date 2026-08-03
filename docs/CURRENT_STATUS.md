@@ -1,7 +1,7 @@
 # FantasyIQ — Current Status
 
-**Last updated:** 2026-08-01 (Session 9 — Task 2 complete)
-**HEAD:** `0ee43721cfb975fd5b70a1613d932b54c3d5f1c7`
+**Last updated:** 2026-08-03 (Session 10 — Basketball AI Prediction and Analysis complete)
+**HEAD:** `f6b90b8`
 **Repo:** https://github.com/giffyshani-jpg/FantasyIQ
 
 ## Running
@@ -33,11 +33,39 @@ Note: `PORT` and `BASE_PATH` are **required** for both dev and build — vite.co
 - **Football fantasy scoring engine and optimizer route** ✅ Session 9 (`0ee4372`)
 - Football optimizer validates XI size, positions, formation, team limit, Captain/VC, and credits only when provider credits exist ✅
 - Football optimizer shows an explicit unavailable state when real lineup/player statistics are missing ✅
+- **Basketball AI pregame prediction** ✅ Session 10 (`f6b90b8`)
+- **Basketball post-game AI vs perfect-team analysis** ✅ Session 10 (`f6b90b8`)
+- Basketball prediction evaluations are stored locally as the foundation for future learning ✅
 - All individual league pages (NBA, WNBA, NBL, NZNBL, FIBA, NBA Summer)
 - Box score, optimizer, play-by-play, player comparison, player detail
 - AI Fantasy Coach (12 named picks with data-backed explanations)
 - **Cricket match details pipeline fully reliable** — opening any schedule match
   never shows UNK vs UNK or Unknown teams (Session 5 fix)
+
+---
+
+## Session 10 — Basketball AI Prediction and Analysis (2026-08-03)
+
+### Added
+
+- Transparent Basketball AI prediction using provider-backed recent form, historical fantasy points, projected minutes, role, injuries, home/away splits, and back-to-back status.
+- Best predicted fantasy XI, Captain, Vice Captain, confidence, projected score, risk, value picks, lock picks, injury impact, and minutes projection.
+- Explicit `Unavailable` output for missing data; no fabricated players, credits, ownership, usage, statistics, or scores.
+- Post-game analysis at `/:league/game/:id/analysis`.
+- Perfect-team comparison with Captain/VC comparison, correct and missed picks, point difference, team similarity, surprises, disappointments, and lessons learned.
+- Local evaluation records for future continuous-learning work.
+
+### Limitations
+
+- Contest ownership is not supplied by the current provider, so differential picks are shown as `Unavailable`.
+- Usage, opponent defense, pace, rest days, and matchup history remain unavailable until a provider supplies those fields.
+
+### Verification
+
+- TypeScript: passed with 0 errors.
+- Production build: passed; existing sourcemap/chunk-size warnings only.
+- Runtime smoke check: home and analysis routes returned HTTP 200.
+- Code commit pushed: `f6b90b8`.
 
 ---
 
@@ -116,13 +144,13 @@ TheSportsDB free football events currently return match/event fields but no line
 
 **Remaining football limitations:**
 - TheSportsDB free data may omit live minute text, lineups, cards, penalties, and extra-time fields; the UI hides unavailable values.
-- Football player statistics, fantasy scoring, and optimizer remain future tasks.
+- Football player statistics and lineup fields remain unavailable from the current free provider, so the optimizer stays explicitly unavailable until real provider data exists.
 
 ---
 
 ## Session 7 — Football Foundation Audit (2026-07-29)
 
-### Task 1 — Football Foundation Audit + Fix
+### Task 1 — Football Foundation Audit + Fix (historical snapshot)
 **Commit:** `36f7f8d`
 
 **Audit findings:**
@@ -222,9 +250,9 @@ TheSportsDB free football events currently return match/event fields but no line
 ## Known Issues / Limitations
 
 - Cricket live scores: TSDB free tier only returns NS/FT — games show "Starting" status
-- Football fantasy logic not implemented (Task 2)
-- Football optimizer not implemented (Task 3)
-- Basketball AI prediction-vs-perfect-team analysis not implemented (Task 4)
+- Historical snapshot: football fantasy logic was not implemented at the time of the earlier audit (Task 2); the current scoring foundation is documented above.
+- Historical snapshot: the football optimizer was not implemented at the time of the earlier audit (Task 3); the current provider-backed unavailable state is documented above.
+- Historical snapshot: Basketball AI prediction-vs-perfect-team analysis was not implemented at the time of the earlier audit (Task 4); Session 10 added it.
 - AI intelligence/ratings are mock/heuristic — no live pitch, weather, player history, or ML data
 - Weather/pitch/conditions in AI Insights show ESTIMATED badge (derived from format heuristics, not live API)
 - Player of Match, Toss result not available from TSDB free tier

@@ -16,6 +16,8 @@
 - [x] Off-season banner with "Next scheduled game" + actual date (never fake)
 - [x] Live auto-refresh every 30s during active games
 - [x] AI Fantasy Coach — 12 named picks with data-backed explanations
+- [x] Basketball AI pregame prediction — provider-backed XI, Captain/VC, confidence, score, risk, value, lock, injury, and minutes signals
+- [x] Basketball post-game analysis — AI prediction vs perfect team with comparisons and learning records
 - [x] Shared Basketball hub page with Recent / Today / Tomorrow tabs
 - [x] Recent tab backward search (`findRecentDate`) — finds latest date with completed games, up to 30 days back
 
@@ -67,6 +69,7 @@
 - [ ] **Scorecard polish** — fall of wickets, partnership data, extras
 
 ### Basketball
+- [ ] Smart Screenshot Optimizer — future enhancement; upload PG, SG, SF, PF, and C screenshots together, automatically identify each fantasy-app position, extract player names, fantasy positions, credits, and teams, merge a single player pool, match players with FantasyIQ AI projections, and build the highest-projected legal team using the salary cap, exact fantasy-app position rules, maximum players per team, Captain, and Vice Captain. Use the positions exactly as shown in the fantasy app; do not substitute real-world positions. This is documentation only and is not implemented.
 - [ ] **EuroLeague / EuroCup** (blocked: no public API)
 - [ ] **Push notifications** for live game start
 - [ ] **Multi-game DFS optimizer**

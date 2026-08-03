@@ -2,8 +2,35 @@
 
 ## Latest Session Summary
 
-Session 9 — Task 2 (Football Fantasy Optimizer) complete — 2026-08-01.
-Task 3 (football provider/data expansion) and Task 4 (Basketball AI Analysis) are not started.
+Session 10 — Basketball AI Prediction and Analysis complete — 2026-08-03.
+
+The latest verified code commit is `f6b90b8`. Documentation is maintained in a separate commit.
+
+## Session 10 Changes
+
+### Basketball AI Prediction and Post-Game Analysis
+
+Implemented:
+
+- Provider-backed Basketball AI pregame prediction panel for scheduled games.
+- Best predicted fantasy XI with Captain and Vice Captain.
+- Confidence percentage, projected fantasy score, risk level, value picks, lock picks, injury impact, and projected minutes.
+- Explicit `Unavailable` handling when required provider data is missing.
+- Differential picks remain unavailable because current providers do not supply contest ownership.
+- Real game-log windows for last 5, last 10, last 20, season average, and home/away splits.
+- Extensible model-input coverage for future opponent defense, pace, usage, rest, starter/bench, and matchup-history signals.
+- Saved pregame prediction snapshots for later evaluation.
+- Post-game AI-versus-perfect-team analysis route with Captain/VC comparison, correct and missed picks, fantasy-point difference, similarity, surprises, disappointments, and lessons learned.
+- Local evaluation records as the foundation for continuous learning.
+
+No fake players, credits, ownership, usage, statistics, or projections are generated.
+
+### Verification
+
+- TypeScript: passed with 0 errors.
+- Production build: passed; only existing sourcemap/chunk-size warnings remain.
+- Runtime smoke check: home and Basketball analysis routes returned HTTP 200.
+- Code commit pushed: `f6b90b8`.
 
 ---
 
@@ -68,7 +95,7 @@ TheSportsDB's current free football event payload contains match/event fields bu
 
 **Remaining football limitations:**
 - TheSportsDB free data may omit live minute text, lineups, cards, penalties, and extra-time fields; the UI hides unavailable values.
-- Football player statistics, fantasy scoring, and optimizer remain future tasks.
+- At the time of Session 8, football player statistics, fantasy scoring, and optimizer remained future tasks; the scoring engine and optimizer foundation were added in Session 9, while real lineup/statistics data remains unavailable from the current free provider.
 
 ---
 

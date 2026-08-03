@@ -4,6 +4,34 @@ All notable changes are documented here in reverse-chronological order.
 
 ---
 
+## [f6b90b8] — Basketball AI Prediction and Analysis (August 3, 2026)
+
+### Added
+
+- Provider-backed pregame Basketball AI prediction panel for scheduled games.
+- Best predicted fantasy XI with Captain and Vice Captain.
+- Confidence percentage, projected fantasy score, risk level, value picks, lock picks, injury impact, and projected minutes.
+- Real game-log windows for last 5, last 10, last 20, season average, and home/away splits.
+- Saved pregame prediction snapshots.
+- Post-game analysis route comparing the AI prediction with the perfect fantasy team.
+- Captain/VC comparison, correct and missed picks, fantasy-point difference, team similarity, surprises, disappointments, and lessons learned.
+- Local prediction evaluations as the foundation for continuous learning.
+
+### No-fabrication behavior
+
+- Differential picks are shown as `Unavailable` because current providers do not supply contest ownership.
+- Usage, opponent defense, pace, rest days, and matchup history are shown as unavailable until real provider data exists.
+- No synthetic players, credits, ownership, statistics, or scores are generated.
+
+### Verification
+
+- TypeScript: passed with 0 errors.
+- Production build: passed; only existing sourcemap/chunk-size warnings remain.
+- Runtime smoke check: home and Basketball analysis routes returned HTTP 200.
+- Code commit pushed: `f6b90b8`.
+
+---
+
 ## [0ee4372] — Football Fantasy Optimizer (August 1, 2026)
 
 ### Added
