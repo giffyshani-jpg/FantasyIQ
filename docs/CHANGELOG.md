@@ -4,6 +4,38 @@ All notable changes are documented here in reverse-chronological order.
 
 ---
 
+## [4f23913] — Lineup Status Display Improved (August 3, 2026)
+
+### Added
+
+- `src/lib/lineup-confirmation-cache.ts`: sessionStorage tracker that records the first confirmed-lineup timestamp per player per game for use in the "Confirmed X min ago" display. Uses `recordLineupConfirmation` / `getLineupConfirmedAt` / `formatConfirmedAgo`.
+- `"Unknown"` status added to `BadgeStatus` in `injury-badge.tsx` with neutral dashed muted styling — shown for scheduled games where ESPN has not yet published the lineup.
+
+### Changed
+
+- `starterBadgeLabel` in `player-status.ts` now returns richer labels:
+  - `player.starter === true` → `"Confirmed Starter"` (was `"Starter"`)
+  - `player.starter === false` → `"Confirmed Bench"` (was `"Bench"`)
+  - scheduled game, no starter flag → `"Unknown"` (was `null` / blank)
+  - live / final, no starter flag → `null` (unchanged)
+- `PlayerStatusBadges` passes `gameStatus` through to `starterBadgeLabel` to enable the `Unknown` path.
+- `PlayerIntelRow` in `pregame-intel-panel.tsx` now accepts `gameId`, records the first-seen confirmation timestamp, and displays `"Confirmed X min ago"` beside the badge for confirmed lineup entries.
+
+### No-fabrication behavior
+
+- Every badge label is derived directly from the ESPN provider (`player.starter` boolean or injury report).
+- `"Unknown"` is shown only when no data exists — it is never a guess.
+- Optimizer, prediction engine, learning engine, and player-comparison page are not modified.
+
+### Verification
+
+- TypeScript: passed with 0 errors.
+- Production build: passed; existing sourcemap/chunk-size warnings only.
+- Runtime smoke check: home, box-score, and compare routes returned HTTP 200.
+- Code commit pushed: `4f23913`.
+
+---
+
 ## [fb7c62f] — Player Comparison AI Head-to-Head Intelligence (August 3, 2026)
 
 ### Added

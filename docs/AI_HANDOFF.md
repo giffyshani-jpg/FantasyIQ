@@ -2,9 +2,38 @@
 
 ## Latest Session Summary
 
-Session 11 — Player Comparison AI Head-to-Head Intelligence complete — 2026-08-03.
+Session 12 — Lineup status display improved — 2026-08-03.
 
-The latest verified code commit is `fb7c62f`. Documentation is maintained in a separate commit.
+The latest verified code commit is `4f23913`. Documentation is maintained in a separate commit.
+
+## Session 12 Changes
+
+### Lineup Status Display
+
+Implemented five isolated changes, no optimizer / prediction engine / learning engine / player-comparison page modified:
+
+- **New `src/lib/lineup-confirmation-cache.ts`**: sessionStorage tracker that records the first time ESPN publishes a confirmed lineup for each player in a game (`recordLineupConfirmation` / `getLineupConfirmedAt` / `formatConfirmedAgo`). Keyed by `gameId:playerId`; never stores PII or fabricated data.
+
+- **`src/components/injury-badge.tsx`**: added `"Unknown"` to `BadgeStatus` with neutral dashed muted styling — shown when a lineup has not been announced by the provider.
+
+- **`src/lib/player-status.ts`**: upgraded `starterBadgeLabel` signature and return type:
+  - `player.starter === true` → `"Confirmed Starter"` (was `"Starter"`)
+  - `player.starter === false` → `"Confirmed Bench"` (was `"Bench"`)
+  - `gameStatus === "scheduled"`, `starter` undefined → `"Unknown"` (was `null` / blank)
+  - live / final, `starter` undefined → `null` (DNP/OUT badge already conveys state)
+
+- **`src/components/player-status-badges.tsx`**: passes `gameStatus` through to the updated `starterBadgeLabel` so the `Unknown` vs `null` distinction applies correctly. Used in Box Score, Fantasy Optimizer, and Player Comparison.
+
+- **`src/components/pregame-intel-panel.tsx`**: `PlayerIntelRow` now accepts a `gameId` prop; records the confirmation timestamp on first render with a confirmed status; displays `"Confirmed X min ago"` in emerald text immediately after the lineup badge when the session-cached timestamp is available.
+
+### Verification
+
+- TypeScript: passed with 0 errors.
+- Production build: passed; existing sourcemap/chunk-size warnings only.
+- Runtime smoke check: home, box-score, and compare routes returned HTTP 200.
+- Code commit pushed: `4f23913`.
+
+---
 
 ## Session 11 Changes
 

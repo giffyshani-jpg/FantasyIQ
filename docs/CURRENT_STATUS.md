@@ -1,7 +1,7 @@
 # FantasyIQ — Current Status
 
-**Last updated:** 2026-08-03 (Session 11 — Player Comparison AI Head-to-Head Intelligence complete)
-**HEAD:** `fb7c62f`
+**Last updated:** 2026-08-03 (Session 12 — Lineup status display improved)
+**HEAD:** `4f23913`
 **Repo:** https://github.com/giffyshani-jpg/FantasyIQ
 
 ## Running
@@ -41,6 +41,13 @@ Note: `PORT` and `BASE_PATH` are **required** for both dev and build — vite.co
   - Category winner highlighting; Unavailable shown when data absent
   - Summary cards: Better Fantasy Pick, Safer Pick, Higher Upside
   - AI Explanation narrative from real provider signals
+- **Lineup status display improved** ✅ Session 12 (`4f23913`)
+  - "Confirmed Starter" / "Confirmed Bench" when ESPN starter flag is a boolean
+  - "Expected Starter" (dashed) from prior-game heuristic
+  - "Bench" for bench-role players
+  - "Unknown" (neutral dashed) for scheduled games where lineup is not yet published
+  - "Confirmed X min ago" text in pregame panel once lineup is first seen in session
+  - Never fabricates status; every label comes from the provider
 - All individual league pages (NBA, WNBA, NBL, NZNBL, FIBA, NBA Summer)
 - Box score, optimizer, play-by-play, player comparison, player detail
 - AI Fantasy Coach (12 named picks with data-backed explanations)
