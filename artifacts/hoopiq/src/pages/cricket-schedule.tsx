@@ -12,6 +12,10 @@ import { MobileLayout } from "../components/layout";
 import { fetchCricketOverview } from "../api";
 import type { CricketGame, CricketLeagueOverview } from "../lib/cricket-types";
 import { localDateString, localDateStringFromIso, fmtTime } from "../lib/date-utils";
+import { StarButton } from "../components/star-button";
+import { FavoritesSection } from "../components/favorites-section";
+import { useMatchFavorites } from "../hooks/use-match-favorites";
+import { cricketFavorite } from "../lib/match-favorites";
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
@@ -68,6 +72,8 @@ function FormatBadge({ format }: { format: string }) {
 // ─── Cricket match card ───────────────────────────────────────────────────────
 
 function CricketMatchCard({ game }: { game: CricketGame }) {
+  const favorites = useMatchFavorites();
+  const favorite = cricketFavorite(game);
   const link = `/cricket/${game.competitionSlug}/game/${encodeURIComponent(game.id)}`;
   const isLive = game.status === "in_progress";
 
@@ -81,7 +87,19 @@ function CricketMatchCard({ game }: { game: CricketGame }) {
         {/* Status + format */}
         <div className="flex items-center justify-between mb-2 gap-2">
           <FormatBadge format={game.format} />
-          <StatusBadge game={game} />
+          <div className="flex items-center gap-1.5">
+            <StatusBadge game={game} />
+            <StarButton
+              active={favorites.isFavorite(favorite.key)}
+              onToggle={() => favorites.toggleFavorite(favorite)}
+              label={
+                favorites.isFavorite(favorite.key)
+                  ? `Unfavorite ${game.homeTeam.name} vs ${game.awayTeam.name}`
+                  : `Favorite ${game.homeTeam.name} vs ${game.awayTeam.name}`
+              }
+              size={16}
+            />
+          </div>
         </div>
 
         {/* Teams */}
@@ -364,6 +382,7 @@ export default function CricketSchedule() {
   return (
     <MobileLayout title="Cricket" showBack backHref="/">
       <div className="p-4 sm:p-5 pb-12">
+        <FavoritesSection sport="cricket" />
         {/* Header */}
         <div className="mb-4 pt-1">
           <div className="flex items-center gap-2 mb-1">

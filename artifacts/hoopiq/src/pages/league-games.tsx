@@ -24,6 +24,7 @@ import { MobileLayout } from "../components/layout";
 import { GameCard } from "../components/game-card";
 import { fetchLeagueOverview, LEAGUE_CONFIGS } from "../api";
 import { Game, LeagueKey, LeagueOverview } from "../lib/types";
+import { FavoritesSection } from "../components/favorites-section";
 
 function isValidLeague(s: string): s is LeagueKey {
   return s in LEAGUE_CONFIGS;
@@ -282,6 +283,7 @@ export default function LeagueGames() {
         {!loading && isOffSeason && (
           <OffSeasonBanner leagueName={config.name} />
         )}
+        <FavoritesSection sport="basketball" />
 
         {/* Provider error banner — shown only when every source failed */}
         {fetchError && (

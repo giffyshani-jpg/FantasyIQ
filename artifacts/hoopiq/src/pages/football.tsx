@@ -3,6 +3,10 @@ import { Link } from "wouter";
 import { MobileLayout } from "../components/layout";
 import { fetchFootballOverview } from "../api";
 import type { FootballGame, FootballOverview, FootballTeam } from "../lib/football-types";
+import { StarButton } from "../components/star-button";
+import { FavoritesSection } from "../components/favorites-section";
+import { useMatchFavorites } from "../hooks/use-match-favorites";
+import { footballFavorite } from "../lib/match-favorites";
 
 interface FootballPageState {
   overview: FootballOverview | null;
@@ -101,6 +105,8 @@ function MatchExtras({ game }: { game: FootballGame }) {
 }
 
 function MatchCard({ game }: { game: FootballGame }) {
+  const favorites = useMatchFavorites();
+  const favorite = footballFavorite(game);
   const hasScore = game.homeTeam.score !== null || game.awayTeam.score !== null;
   const score = hasScore ? `${game.homeTeam.score ?? "—"} – ${game.awayTeam.score ?? "—"}` : "vs";
   return (
@@ -117,7 +123,19 @@ function MatchCard({ game }: { game: FootballGame }) {
             )}
             <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/65 truncate">{game.leagueName}</span>
           </div>
-          <StatusPill game={game} />
+          <div className="flex items-center gap-1.5">
+            <StatusPill game={game} />
+            <StarButton
+              active={favorites.isFavorite(favorite.key)}
+              onToggle={() => favorites.toggleFavorite(favorite)}
+              label={
+                favorites.isFavorite(favorite.key)
+                  ? `Unfavorite ${game.homeTeam.name} vs ${game.awayTeam.name}`
+                  : `Favorite ${game.homeTeam.name} vs ${game.awayTeam.name}`
+              }
+              size={16}
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
@@ -223,6 +241,7 @@ export default function FootballPage() {
   return (
     <MobileLayout title="Football" showBack backHref="/">
       <div className="p-4 sm:p-5 pb-12">
+        <FavoritesSection sport="football" />
         <header className="flex items-start justify-between gap-4 mb-6 pt-1">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-green-400/70 mb-2">Match centre</p>

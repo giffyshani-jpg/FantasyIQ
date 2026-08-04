@@ -20,6 +20,7 @@ import CricketBoxScore from './pages/cricket-box-score';
 import CricketOptimizer from './pages/cricket-optimizer';
 import BasketballAnalysis from './pages/basketball-analysis';
 import SmartScreenshotOptimizer from './pages/smart-screenshot-optimizer';
+import { MatchFavoritesProvider } from './hooks/use-match-favorites';
 
 const queryClient = new QueryClient();
 
@@ -63,12 +64,14 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
+      <MatchFavoritesProvider>
+        <TooltipProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+            <Router />
+          </WouterRouter>
+          <Toaster />
+        </TooltipProvider>
+      </MatchFavoritesProvider>
     </QueryClientProvider>
   );
 }

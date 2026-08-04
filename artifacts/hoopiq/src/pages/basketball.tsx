@@ -26,6 +26,7 @@ import {
   localDayOffset,
   relativeDate,
 } from "../lib/date-utils";
+import { FavoritesSection } from "../components/favorites-section";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -415,6 +416,7 @@ export default function BasketballPage() {
   return (
     <MobileLayout title="Basketball" showBack backHref="/">
       <div className="p-4 sm:p-5 pb-12">
+        <FavoritesSection sport="basketball" />
         {/* Page headline */}
         <div className="mb-4 pt-1">
           <div className="flex items-center gap-2 mb-1">

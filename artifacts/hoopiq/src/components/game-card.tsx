@@ -11,6 +11,9 @@
 import React from "react";
 import { Link } from "wouter";
 import { Game } from "../lib/types";
+import { StarButton } from "./star-button";
+import { useMatchFavorites } from "../hooks/use-match-favorites";
+import { basketballFavorite } from "../lib/match-favorites";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -132,6 +135,8 @@ function TeamRow({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function GameCard({ game, showLeague = false }: { game: Game; showLeague?: boolean }) {
+  const favorites = useMatchFavorites();
+  const favorite = basketballFavorite(game);
   const isScheduled = game.status === "scheduled";
   const isLive = game.status === "in_progress";
   const isFinal = game.status === "final";
@@ -184,6 +189,16 @@ export function GameCard({ game, showLeague = false }: { game: Game; showLeague?
 
           {/* Right: league badge + link indicator */}
           <div className="flex items-center gap-2">
+            <StarButton
+              active={favorites.isFavorite(favorite.key)}
+              onToggle={() => favorites.toggleFavorite(favorite)}
+              label={
+                favorites.isFavorite(favorite.key)
+                  ? `Unfavorite ${game.awayTeam.name} at ${game.homeTeam.name}`
+                  : `Favorite ${game.awayTeam.name} at ${game.homeTeam.name}`
+              }
+              size={16}
+            />
             {showLeague && (
               <span
                 className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-gradient-to-r ${leagueColor(game.league)} text-white`}
