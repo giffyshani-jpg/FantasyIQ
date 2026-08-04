@@ -2,9 +2,58 @@
 
 ## Latest Session Summary
 
-Session 16 — Recent Matches — 2026-08-04.
+Session 17 — v0.1.0 Beta Deployment Prep — 2026-08-04.
 
-The latest verified code commit is `b39d2a1`. Documentation is maintained in a separate commit.
+The latest verified code commit is `38b0a79`. Documentation is maintained in a separate commit.
+
+## Session 17 Changes
+
+### Task 1 — Version Badge
+
+Added a version badge and build-date display so the public release is clearly identified:
+
+- Added `src/lib/app-config.ts`: single source of truth for `APP_VERSION` (`"0.1.0"`), `APP_STAGE` (`"Beta"`), `BUILD_DATE` (injected at compile time), `formatBuildDate()`, and `appVersionLabel()`. All other files import from here — only one constant to change per release.
+- Modified `vite.config.ts`: added `define: { __BUILD_DATE__: JSON.stringify(new Date().toISOString()) }` so every production bundle is stamped with its exact build timestamp.
+- Modified `src/components/layout.tsx`: added a `v0.1.0 Beta` pill badge in the header logo area, visible on all screen sizes.
+- Modified `src/pages/home.tsx`: added `FantasyIQ v0.1.0 Beta` and `Last Updated: <build date>` lines in the footer.
+
+### Task 2 — Production Readiness Check
+
+- TypeScript: ✅ 0 errors (`pnpm --filter @workspace/hoopiq run typecheck`)
+- Production build: ✅ success (`PORT=21534 BASE_PATH=/ pnpm --filter @workspace/hoopiq run build`); only pre-existing sourcemap/chunk-size warnings.
+- Routes verified present in `App.tsx`: `/`, `/basketball`, `/cricket`, `/football`, `/smart-screenshot-optimizer`, all basketball/cricket/football sub-routes.
+- Console logging review: all `console.error`/`console.warn`/`console.info` in providers and `api.js` are operational diagnostic logs — intentional, not debug leftovers. The `logHealth()` utility in `provider-manager.ts` is an opt-in diagnostic method never called automatically; left in place.
+- No orphan `debugger` statements, no TODO/FIXME/HACK/XXX markers, no development stubs found in `.ts`/`.tsx` files.
+- Existing functionality was not modified.
+
+### Task 3 — Deployment Readiness
+
+Verified `artifacts/hoopiq/.replit-artifact/artifact.toml` is production-ready; no changes required:
+
+| Setting | Value | Status |
+|---|---|---|
+| Build command | `pnpm --filter @workspace/hoopiq run build` | ✅ |
+| Serve mode | `static` | ✅ |
+| Public dir | `artifacts/hoopiq/dist/public` | ✅ |
+| SPA rewrite | `/* → /index.html` | ✅ client-side routing works after deploy |
+| PORT env | `21534` | ✅ |
+| BASE_PATH env | `/` | ✅ |
+| LocalStorage | browser-managed | ✅ survives page refresh by design |
+
+App is ready to deploy — click the Deploy button manually.
+
+### Important boundaries
+
+- Prediction logic, optimizer logic, learning engine, OCR, screenshot optimizer, football engine, AI logic, and player comparison were not modified.
+- No new routes or data models were added.
+
+### Verification
+
+- TypeScript: passed with 0 errors.
+- Production build: passed; existing sourcemap/chunk-size warnings only.
+- Code commit: `38b0a79`.
+
+---
 
 ## Session 16 Changes
 

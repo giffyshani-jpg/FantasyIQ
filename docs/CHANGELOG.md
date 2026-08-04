@@ -4,6 +4,35 @@ All notable changes are documented here in reverse-chronological order.
 
 ---
 
+## [38b0a79] — v0.1.0 Beta Deployment Prep (August 4, 2026)
+
+### Added
+
+- `src/lib/app-config.ts`: shared constants file — `APP_VERSION` (`"0.1.0"`), `APP_STAGE` (`"Beta"`), `BUILD_DATE` (compile-time stamped), `formatBuildDate()`, and `appVersionLabel()`. Single place to update the version for every future release.
+- `vite.config.ts`: `define` block injects `__BUILD_DATE__` as an ISO timestamp at build time so every production bundle carries an exact build date.
+- `layout.tsx` header: `v0.1.0 Beta` pill badge displayed next to the FantasyIQ logo on all screen sizes.
+- `home.tsx` footer: `FantasyIQ v0.1.0 Beta` label and `Last Updated: <build date>` line below the attribution text.
+
+### Changed
+
+- `vite.config.ts`: added `define` config key (no existing keys altered).
+- `layout.tsx`: version badge inserted into logo row (no layout or styling changes elsewhere).
+- `home.tsx`: footer expanded with two new lines (existing attribution text preserved).
+
+### Scope protection
+
+- Prediction engine, optimizer, learning engine, OCR, screenshot optimizer, football engine, AI logic, player comparison, and all routes were not modified.
+
+### Production readiness check
+
+- TypeScript: ✅ 0 errors.
+- Production build: ✅ success; existing sourcemap/chunk-size warnings only.
+- Routes present: `/`, `/basketball`, `/cricket`, `/football`, `/smart-screenshot-optimizer`, all sub-routes verified in `App.tsx`.
+- No `debugger` statements, no TODO/FIXME/HACK/XXX markers, no development stubs in `.ts`/`.tsx` files.
+- `artifact.toml`: build command, static serve, SPA rewrite, PORT, BASE_PATH all correct — ready to deploy.
+
+---
+
 ## [b39d2a1] — Recent Matches (August 4, 2026)
 
 ### Added
