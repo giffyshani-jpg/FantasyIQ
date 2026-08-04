@@ -4,6 +4,33 @@ All notable changes are documented here in reverse-chronological order.
 
 ---
 
+## [b39d2a1] — Recent Matches (August 4, 2026)
+
+### Added
+
+- `src/lib/recent-matches.ts`: localStorage-backed recent-matches store (`fantasyiq:recent-matches`), max 10 entries, deduped by key, newest first. Builder helpers (`recentBasketballMatch`, `recentCricketMatch`, `recentFootballMatch`) mirror the shape of the existing favorites helpers.
+- `src/hooks/use-recent-matches.tsx`: `RecentMatchesProvider` React context + `useRecentMatches()` hook exposing `recentMatches[]`, `recordMatch()`, `clearAll()`.
+- `src/components/recently-viewed-section.tsx`: "Recently Viewed" section for the Home page — sport icon tile, match name (`ABB vs ABB`), league/competition, and start time per entry. Hidden when empty. "Clear" button removes all entries. 1-col on mobile, 2-col at sm breakpoint.
+- `RecentMatchesProvider` added to `App.tsx` (wraps all routes).
+- `<RecentlyViewedSection />` rendered on Home page above the footer.
+- `box-score.tsx`: records the basketball match in the existing `game?.id` useEffect.
+- `cricket-box-score.tsx`: records the cricket match in a new `game?.id` useEffect.
+- `football-match-details.tsx`: records the football match in a new `game?.id` useEffect.
+
+### Scope protection
+
+- Prediction engine, optimizer, learning engine, OCR, screenshot optimizer, football engine, AI logic, and player comparison were not modified.
+- New storage key (`fantasyiq:recent-matches`) is separate from match favorites and player favorites keys.
+
+### Verification
+
+- TypeScript: passed with 0 errors.
+- Production build: passed; existing sourcemap/chunk-size warnings only.
+- Runtime smoke check: `/`, `/basketball`, `/cricket`, `/football`, `/nba`, and `/smart-screenshot-optimizer` returned HTTP 200.
+- Code commit: `b39d2a1`.
+
+---
+
 ## [0490ddd] — Match Favorites (August 4, 2026)
 
 ### Added

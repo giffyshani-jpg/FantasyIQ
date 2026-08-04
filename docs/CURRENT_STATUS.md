@@ -1,7 +1,7 @@
 # FantasyIQ — Current Status
 
-**Last updated:** 2026-08-04 (Session 15 — Match Favorites)
-**HEAD:** `0490ddd`
+**Last updated:** 2026-08-04 (Session 16 — Recent Matches)
+**HEAD:** `b39d2a1`
 **Repo:** https://github.com/giffyshani-jpg/FantasyIQ
 
 ## Running
@@ -65,6 +65,13 @@ Note: `PORT` and `BASE_PATH` are **required** for both dev and build — vite.co
   - Favorites persist in browser localStorage and can be removed by tapping the star again
   - Each sport page shows a Favorites section at the top only when that sport has saved matches
   - Favorite match snapshots remain available after reloads and link back to the original match
+- **Recent Matches** ✅ Session 16 (`b39d2a1`)
+  - Tracks the last 10 match detail pages the user opened (basketball, cricket, football)
+  - Stored in localStorage; auto-deduped by key; newest first; capped at 10
+  - "Recently Viewed" section on Home page shows sport icon, match name, league, and start time
+  - Clicking any card navigates back to that match; Clear button removes all entries
+  - Mobile responsive (1-col → 2-col at sm breakpoint); hidden when empty
+  - No backend, no API changes; existing prediction/optimizer/AI logic untouched
 - AI Fantasy Coach (12 named picks with data-backed explanations)
 - **Cricket match details pipeline fully reliable** — opening any schedule match
   never shows UNK vs UNK or Unknown teams (Session 5 fix)

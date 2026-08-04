@@ -2,9 +2,38 @@
 
 ## Latest Session Summary
 
-Session 15 — Match Favorites — 2026-08-04.
+Session 16 — Recent Matches — 2026-08-04.
 
-The latest verified code commit is `0490ddd`. Documentation is maintained in a separate commit.
+The latest verified code commit is `b39d2a1`. Documentation is maintained in a separate commit.
+
+## Session 16 Changes
+
+### Recent Matches
+
+Implemented a lightweight "Recently Viewed" feature with no backend and no API changes:
+
+- Added `src/lib/recent-matches.ts`: localStorage-backed store (`fantasyiq:recent-matches`), max 10 entries, deduped by key, newest first. Builder helpers for basketball, cricket, and football.
+- Added `src/hooks/use-recent-matches.tsx`: `RecentMatchesProvider` context + `useRecentMatches()` hook exposing `recentMatches[]`, `recordMatch()`, and `clearAll()`.
+- Added `src/components/recently-viewed-section.tsx`: Home page section — sport icon tile, match name (`ABB vs ABB`), league/competition, and start time. Hidden when empty. "Clear" button removes all entries. Mobile responsive (1-col → 2-col at sm breakpoint).
+- Modified `src/App.tsx`: wrapped app with `RecentMatchesProvider` (nested inside existing `MatchFavoritesProvider`).
+- Modified `src/pages/home.tsx`: renders `<RecentlyViewedSection />` above the footer.
+- Modified `src/pages/box-score.tsx`: calls `recordMatch()` inside the existing `game?.id` useEffect on first game load.
+- Modified `src/pages/cricket-box-score.tsx`: calls `recordMatch()` in a new `game?.id` useEffect on first successful fetch.
+- Modified `src/pages/football-match-details.tsx`: calls `recordMatch()` in a new `game?.id` useEffect on first successful fetch.
+
+### Important boundaries
+
+- Prediction logic, optimizer logic, learning engine, OCR parsing, screenshot optimizer, football engine, AI logic, and player comparison were not changed.
+- The new `recent-matches` localStorage key (`fantasyiq:recent-matches`) is separate from match favorites (`fantasyiq:match-favorites`) and player favorites.
+
+### Verification
+
+- TypeScript: passed with 0 errors.
+- Production build: passed; existing sourcemap/chunk-size warnings only.
+- Runtime smoke check: `/`, `/basketball`, `/cricket`, `/football`, `/nba`, and `/smart-screenshot-optimizer` all returned HTTP 200.
+- Code commit: `b39d2a1`.
+
+---
 
 ## Session 15 Changes
 

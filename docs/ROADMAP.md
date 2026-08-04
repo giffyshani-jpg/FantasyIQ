@@ -23,6 +23,7 @@
 - [x] Recent tab backward search (`findRecentDate`) — finds latest date with completed games, up to 30 days back
 - [x] Match Favorites — star any basketball, cricket, or football match card, persist it in localStorage, and show saved matches in the sport page's top Favorites section
 - [x] Last Updated timestamps — Pregame Intel, Player Comparison, and Smart Screenshot Optimizer show `Last Updated: Just now` or `Last Updated: X min ago` after successful refreshes
+- [x] Recent Matches — track last 10 opened match pages in localStorage; "Recently Viewed" section on Home page (sport icon, match name, league, start time); auto-dedup; newest first; Clear button; mobile responsive; no backend
 
 ### Cricket Features
 - [x] Cricket section on home page via TheSportsDB auto-discovery
