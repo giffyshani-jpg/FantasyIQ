@@ -12,6 +12,7 @@ import { LeagueOverview } from "../lib/types";
 import type { CricketLeagueOverview } from "../lib/cricket-types";
 import { relativeDate } from "../lib/date-utils";
 import { RecentlyViewedSection } from "../components/recently-viewed-section";
+import { appVersionLabel, formatBuildDate } from "../lib/app-config";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -352,8 +353,14 @@ export default function Home() {
         <RecentlyViewedSection />
 
         {/* Footer */}
-        <div className="flex flex-col items-center gap-1 pt-2">
-          <p className="text-[10px] text-muted-foreground/30 text-center">
+        <div className="flex flex-col items-center gap-1 pt-2 pb-1">
+          <p className="text-[10px] text-muted-foreground/40 text-center font-medium">
+            {appVersionLabel()}
+          </p>
+          <p className="text-[10px] text-muted-foreground/25 text-center">
+            Last Updated: {formatBuildDate()}
+          </p>
+          <p className="text-[10px] text-muted-foreground/25 text-center">
             ESPN · TheSportsDB · FantasyIQ Intelligence
           </p>
         </div>

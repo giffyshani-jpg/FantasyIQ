@@ -29,6 +29,10 @@ if (!basePath) {
 
 export default defineConfig({
   base: basePath,
+  define: {
+    // Stamped at compile time; consumed by src/lib/app-config.ts
+    __BUILD_DATE__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     tailwindcss(),

@@ -7,6 +7,7 @@
 
 import React from "react";
 import { Link, useLocation } from "wouter";
+import { APP_VERSION, APP_STAGE } from "@/lib/app-config";
 
 interface MobileLayoutProps {
   children: React.ReactNode;
@@ -105,6 +106,10 @@ export function MobileLayout({
                   </div>
                   <span className="font-black text-lg tracking-tighter text-foreground group-hover:text-primary/90 transition-colors">
                     FantasyIQ
+                  </span>
+                  {/* Version badge */}
+                  <span className="text-[9px] font-semibold text-primary/50 border border-primary/20 rounded-full px-1.5 py-0.5 leading-none shrink-0 select-none">
+                    v{APP_VERSION}{APP_STAGE ? ` ${APP_STAGE}` : ""}
                   </span>
                   <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40 mt-0.5 hidden sm:block">
                     Multi-Sport Fantasy
