@@ -11,6 +11,7 @@ import { fetchLeagueOverview, fetchCricketOverview } from "../api";
 import { LeagueOverview } from "../lib/types";
 import type { CricketLeagueOverview } from "../lib/cricket-types";
 import { relativeDate } from "../lib/date-utils";
+import { RecentlyViewedSection } from "../components/recently-viewed-section";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -346,6 +347,9 @@ export default function Home() {
           badgeColor="bg-blue-400"
           comingSoon={true}
         />
+
+        {/* Recently Viewed */}
+        <RecentlyViewedSection />
 
         {/* Footer */}
         <div className="flex flex-col items-center gap-1 pt-2">

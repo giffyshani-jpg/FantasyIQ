@@ -21,6 +21,7 @@ import CricketOptimizer from './pages/cricket-optimizer';
 import BasketballAnalysis from './pages/basketball-analysis';
 import SmartScreenshotOptimizer from './pages/smart-screenshot-optimizer';
 import { MatchFavoritesProvider } from './hooks/use-match-favorites';
+import { RecentMatchesProvider } from './hooks/use-recent-matches';
 
 const queryClient = new QueryClient();
 
@@ -65,12 +66,14 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <MatchFavoritesProvider>
+      <RecentMatchesProvider>
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
             <Router />
           </WouterRouter>
           <Toaster />
         </TooltipProvider>
+      </RecentMatchesProvider>
       </MatchFavoritesProvider>
     </QueryClientProvider>
   );

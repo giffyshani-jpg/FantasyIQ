@@ -10,6 +10,8 @@ import { BasketballPredictionPanel } from "../components/basketball-prediction-p
 import { calculateFantasyPoints } from "../lib/stats";
 import { useComparisonSelection } from "../hooks/use-comparison-selection";
 import { useFavorites } from "../hooks/use-favorites";
+import { useRecentMatches } from "../hooks/use-recent-matches";
+import { recentBasketballMatch } from "../lib/recent-matches";
 import { useRecentForm } from "../hooks/use-recent-form";
 import { useLiveGame } from "../hooks/use-live-game";
 import {
@@ -114,6 +116,7 @@ export default function BoxScore() {
   const comparison = useComparisonSelection(gameId);
   const favorites = useFavorites();
   const recentForm = useRecentForm();
+  const { recordMatch } = useRecentMatches();
 
   // Restore the remembered tab/filters for this specific game.
   useEffect(() => {
@@ -140,6 +143,14 @@ export default function BoxScore() {
       gameId,
       Date.now(),
     );
+    // Record this match as recently viewed
+    recordMatch(recentBasketballMatch({
+      id: game.id,
+      league: game.league,
+      startTimeIso: game.startTimeIso,
+      homeTeam: { name: game.homeTeam.name, abbreviation: game.homeTeam.abbreviation },
+      awayTeam: { name: game.awayTeam.name, abbreviation: game.awayTeam.abbreviation },
+    }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.id]);
 

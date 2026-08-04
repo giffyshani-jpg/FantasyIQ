@@ -10,6 +10,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "wouter";
 import { MobileLayout } from "../components/layout";
 import { fetchCricketGame } from "../api";
+import { useRecentMatches } from "../hooks/use-recent-matches";
+import { recentCricketMatch } from "../lib/recent-matches";
 import type { CricketGame, CricketInnings, CricketPlayer } from "../lib/cricket-types";
 import { calculateCricketFantasyPoints, getScoringProfile } from "../lib/cricket-scoring";
 import { MatchIntelligenceCard } from "../components/cricket-match-intelligence";
@@ -642,6 +644,21 @@ export default function CricketBoxScore() {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [gameId]);
+
+  // Record this match as recently viewed on first successful load
+  const { recordMatch } = useRecentMatches();
+  useEffect(() => {
+    if (!game) return;
+    recordMatch(recentCricketMatch({
+      id: game.id,
+      competitionSlug: game.competitionSlug,
+      competitionName: game.competitionName,
+      startTimeIso: game.startTimeIso,
+      homeTeam: { name: game.homeTeam.name, abbreviation: game.homeTeam.abbreviation },
+      awayTeam: { name: game.awayTeam.name, abbreviation: game.awayTeam.abbreviation },
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.id]);
 
   // Live polling
   useEffect(() => {

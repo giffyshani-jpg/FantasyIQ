@@ -3,6 +3,8 @@ import { Link, useParams } from "wouter";
 import { MobileLayout } from "../components/layout";
 import { fetchFootballGame } from "../api";
 import type { FootballGame, FootballTeam } from "../lib/football-types";
+import { useRecentMatches } from "../hooks/use-recent-matches";
+import { recentFootballMatch } from "../lib/recent-matches";
 
 function TeamLogo({ team }: { team: FootballTeam }) {
   return team.badgeUrl ? (
@@ -79,6 +81,21 @@ export default function FootballMatchDetails() {
   const [game, setGame] = useState<FootballGame | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { recordMatch } = useRecentMatches();
+
+  // Record this match as recently viewed on first successful load
+  useEffect(() => {
+    if (!game) return;
+    recordMatch(recentFootballMatch({
+      id: game.id,
+      leagueId: game.leagueId,
+      leagueName: game.leagueName,
+      startTimeIso: game.startTimeIso,
+      homeTeam: { name: game.homeTeam.name, abbreviation: game.homeTeam.abbreviation },
+      awayTeam: { name: game.awayTeam.name, abbreviation: game.awayTeam.abbreviation },
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.id]);
 
   const load = useCallback(async () => {
     if (!id) {
