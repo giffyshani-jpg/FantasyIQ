@@ -2,9 +2,50 @@
 
 ## Latest Session Summary
 
-Session 13 — Smart Screenshot Optimizer Phase 1 — 2026-08-03.
+Session 15 — Match Favorites — 2026-08-04.
 
-The latest verified code commit is `02d7fb4`. Documentation is maintained in a separate commit.
+The latest verified code commit is `0490ddd`. Documentation is maintained in a separate commit.
+
+## Session 15 Changes
+
+### Match Favorites
+
+Implemented a lightweight, reusable match Favorites feature:
+
+- Added a localStorage-backed match favorite store with sport-specific keys.
+- Added a shared React provider/hook for favorite state.
+- Added star toggles to basketball, cricket, and football match cards.
+- Added a top-of-page Favorites section for each sport, hidden when that sport has no favorites.
+- Persisted lightweight match snapshots so saved matches remain visible after a reload and link back to their match details.
+
+### Important boundaries
+
+- Prediction logic, optimizer logic, learning engine, OCR parsing, screenshot optimizer, football engine, and player comparison logic were not changed.
+- Existing player Favorites storage remains separate from match Favorites storage.
+
+### Verification
+
+- TypeScript: passed with 0 errors.
+- Production build: passed; existing sourcemap/chunk-size warnings only.
+- Runtime smoke check: `/`, `/basketball`, `/cricket`, `/football`, `/nba`, and `/smart-screenshot-optimizer` returned the app shell successfully.
+- Code commit pushed: `0490ddd46fc786e2d0c2db34bb1b8db5e5c8d3b7`.
+
+---
+
+## Session 14 Changes — Last Updated timestamps
+
+Added the previously completed shared `LastUpdated` display:
+
+- `Last Updated: Just now` after a first successful load or parse.
+- `Last Updated: X min ago` after elapsed minutes.
+- Automatic elapsed-time refresh while mounted.
+- Pregame Intel, Player Comparison, and Smart Screenshot Optimizer are wired to successful data state only.
+
+The timestamp change did not modify prediction logic, optimizer behavior, learning, football, or OCR parsing.
+
+Code commit: `2b4b5f1c908621b70b775efbe0567caad6ae6551`.
+
+---
 
 ## Session 13 Changes
 

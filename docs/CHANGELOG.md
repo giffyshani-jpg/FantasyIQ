@@ -4,6 +4,50 @@ All notable changes are documented here in reverse-chronological order.
 
 ---
 
+## [0490ddd] — Match Favorites (August 4, 2026)
+
+### Added
+
+- Reusable localStorage-backed match Favorites state for basketball, cricket, and football.
+- ⭐ star toggle on every supported match card; tapping again removes the match.
+- Sport-specific Favorites section at the top of each sport page, shown only when that sport has saved matches.
+- Lightweight persisted match snapshots that remain available after a reload and link to match details.
+
+### Scope protection
+
+- Prediction logic, optimizer logic, learning engine, OCR parsing, screenshot optimizer, football engine, and player comparison logic were not modified.
+- Match Favorites use a separate storage key from player Favorites.
+
+### Verification
+
+- TypeScript: passed with 0 errors.
+- Production build: passed; existing sourcemap/chunk-size warnings only.
+- Runtime smoke check: home, basketball, cricket, football, league, and screenshot-optimizer routes returned the app shell successfully.
+- Code commit: `0490ddd46fc786e2d0c2db34bb1b8db5e5c8d3b7`.
+
+---
+
+## [2b4b5f1] — Last Updated timestamps (August 3, 2026)
+
+### Added
+
+- Shared `LastUpdated` display with the exact labels `Last Updated: Just now` and `Last Updated: X min ago`.
+- Automatic elapsed-minute refresh while mounted.
+- Pregame Intel, Player Comparison, and Smart Screenshot Optimizer timestamp updates after successful data loads or parses.
+
+### Scope protection
+
+- Prediction logic, optimizer behavior, learning engine, football, and OCR parsing were not modified.
+
+### Verification
+
+- TypeScript: passed with 0 errors.
+- Production build: passed; existing sourcemap/chunk-size warnings only.
+- Runtime smoke check: home, `/smart-screenshot-optimizer`, and compare routes returned the app shell successfully.
+- Code commit: `2b4b5f1c908621b70b775efbe0567caad6ae6551`.
+
+---
+
 ## [02d7fb4] — Smart Screenshot Optimizer Phase 1 (August 3, 2026)
 
 ### Added

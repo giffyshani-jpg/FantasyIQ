@@ -1,7 +1,7 @@
 # FantasyIQ — Current Status
 
-**Last updated:** 2026-08-03 (Session 13 — Smart Screenshot Optimizer Phase 1)
-**HEAD:** `02d7fb4`
+**Last updated:** 2026-08-04 (Session 15 — Match Favorites)
+**HEAD:** `0490ddd`
 **Repo:** https://github.com/giffyshani-jpg/FantasyIQ
 
 ## Running
@@ -57,9 +57,63 @@ Note: `PORT` and `BASE_PATH` are **required** for both dev and build — vite.co
   - Merge duplicate players across screenshots
   - Edit and save the reusable parsed fantasy-app player model locally
   - Does not generate fantasy teams or modify existing optimizer, prediction, learning, football, or comparison features
+- **Last Updated timestamps** ✅ Session 14 (`2b4b5f1`)
+  - Pregame Intel, Player Comparison, and Smart Screenshot Optimizer show `Last Updated: Just now` or `Last Updated: X min ago`
+  - Labels update automatically as elapsed minutes change after successful loads or parses
+- **Match Favorites** ✅ Session 15 (`0490ddd`)
+  - Every basketball, cricket, and football match card has a reusable star toggle
+  - Favorites persist in browser localStorage and can be removed by tapping the star again
+  - Each sport page shows a Favorites section at the top only when that sport has saved matches
+  - Favorite match snapshots remain available after reloads and link back to the original match
 - AI Fantasy Coach (12 named picks with data-backed explanations)
 - **Cricket match details pipeline fully reliable** — opening any schedule match
   never shows UNK vs UNK or Unknown teams (Session 5 fix)
+
+---
+
+## Session 15 — Match Favorites (2026-08-04)
+
+### Added
+
+- Reusable match-favorite storage and React state layer backed by browser localStorage.
+- Star toggle on basketball, cricket, and football match cards.
+- Sport-specific Favorites section at the top of each sport page when at least one saved match exists.
+- Lightweight persisted match snapshots so Favorites remain visible across reloads.
+
+### Scope protection
+
+- Prediction logic, optimizer logic, learning engine, OCR parsing, screenshot optimizer, football engine, and player comparison logic were not modified.
+- Favorites use a separate match storage key from existing player favorites.
+
+### Verification
+
+- TypeScript: passed with 0 errors.
+- Production build: passed; existing sourcemap/chunk-size warnings only.
+- Runtime smoke check: `/`, `/basketball`, `/cricket`, `/football`, `/nba`, and `/smart-screenshot-optimizer` returned the app shell successfully.
+- Code commit pushed: `0490ddd46fc786e2d0c2db34bb1b8db5e5c8d3b7`.
+
+---
+
+## Session 14 — Last Updated timestamps (2026-08-03)
+
+### Added
+
+- Shared relative timestamp display with `Last Updated: Just now` and `Last Updated: X min ago`.
+- Automatic elapsed-minute refresh while the timestamped surface remains mounted.
+- Pregame Intel uses the existing successful game refresh timestamp.
+- Player Comparison records the timestamp after a successful game load.
+- Smart Screenshot Optimizer updates its timestamp after a successful screenshot parse.
+
+### Scope protection
+
+- Prediction logic, optimizer behavior, learning engine, football, and OCR parsing were not modified.
+
+### Verification
+
+- TypeScript: passed with 0 errors.
+- Production build: passed; existing sourcemap/chunk-size warnings only.
+- Runtime smoke check: home, `/smart-screenshot-optimizer`, and `/nba/game/smoke/compare` returned the app shell successfully.
+- Code commit pushed: `2b4b5f1c908621b70b775efbe0567caad6ae6551`.
 
 ---
 

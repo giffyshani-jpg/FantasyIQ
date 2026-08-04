@@ -21,6 +21,8 @@
 - [x] Basketball post-game analysis — AI prediction vs perfect team with comparisons and learning records
 - [x] Shared Basketball hub page with Recent / Today / Tomorrow tabs
 - [x] Recent tab backward search (`findRecentDate`) — finds latest date with completed games, up to 30 days back
+- [x] Match Favorites — star any basketball, cricket, or football match card, persist it in localStorage, and show saved matches in the sport page's top Favorites section
+- [x] Last Updated timestamps — Pregame Intel, Player Comparison, and Smart Screenshot Optimizer show `Last Updated: Just now` or `Last Updated: X min ago` after successful refreshes
 
 ### Cricket Features
 - [x] Cricket section on home page via TheSportsDB auto-discovery
