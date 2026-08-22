@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "wouter";
 import { MobileLayout } from "../components/layout";
 import { useLiveGame } from "../hooks/use-live-game";
@@ -7,7 +7,10 @@ import {
   getSavedBasketballPrediction,
 } from "../lib/basketball-prediction";
 import { calculateFantasyPoints } from "../lib/stats";
-import { recordBasketballPredictionEvaluation } from "../lib/basketball-learning";
+import {
+  getBasketballLearningSummary,
+  recordBasketballPredictionEvaluation,
+} from "../lib/basketball-learning";
 import { Game, Player } from "../lib/types";
 
 const LINEUP_SIZE = 8;
@@ -78,6 +81,7 @@ export default function BasketballAnalysis() {
   const { game, isStale } = useLiveGame(gameId, league);
   const prediction = useMemo(() => getSavedBasketballPrediction(gameId), [gameId]);
   const recorded = useRef(false);
+  const [learningVersion, setLearningVersion] = useState(0);
   const actual = useMemo(() => (game?.status === "final" ? perfectTeam(game) : []), [game]);
 
   useEffect(() => {
@@ -100,6 +104,7 @@ export default function BasketballAnalysis() {
       exactTeam: predictedIds.length === actual.length && predictedIds.every((id) => actual.some((player) => player.id === id)),
       featureAvailability: prediction.modelInputs,
     });
+    setLearningVersion((version) => version + 1);
   }, [actual, game, gameId, league, prediction]);
 
   if (!game) {
@@ -122,6 +127,10 @@ export default function BasketballAnalysis() {
   const exactTeam = actual.length >= LINEUP_SIZE && prediction?.available === true &&
     prediction.predictedFantasyXi.length === actual.length &&
     actual.every((player) => predictedIds.has(player.id));
+  const learningSummary = useMemo(
+    () => getBasketballLearningSummary(),
+    [learningVersion],
+  );
 
   return (
     <MobileLayout>
@@ -233,6 +242,43 @@ export default function BasketballAnalysis() {
                 {exactTeam
                   ? "The AI matched every actual XI slot because the provider supplied enough real historical form, projected minutes, and availability data for the selected rotation."
                   : "This evaluation is stored as a real training example. The next model iteration can compare the available L5/L10/L20, season, home/away, minutes, starter/bench, injury, and rest signals against the players the perfect team required."}
+              </p>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary">Learning foundation</p>
+                  <h2 className="mt-1 text-sm font-bold">Local prediction track record</h2>
+                </div>
+                <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary">
+                  {learningSummary.sampleCount} {learningSummary.sampleCount === 1 ? "sample" : "samples"}
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <SummaryCard
+                  label="Avg similarity"
+                  value={learningSummary.averageTeamSimilarityPercent === null
+                    ? "Unavailable"
+                    : `${learningSummary.averageTeamSimilarityPercent.toFixed(1)}%`}
+                />
+                <SummaryCard
+                  label="Avg proj. error"
+                  value={learningSummary.averageAbsoluteProjectionError === null
+                    ? "Unavailable"
+                    : `${learningSummary.averageAbsoluteProjectionError.toFixed(1)} FPTS`}
+                />
+                <SummaryCard
+                  label="Exact XI rate"
+                  value={learningSummary.exactTeamRatePercent === null
+                    ? "Unavailable"
+                    : `${learningSummary.exactTeamRatePercent.toFixed(1)}%`}
+                />
+              </div>
+              <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
+                Metrics use completed games recorded in this browser. They describe
+                performance for review and do not replace provider-backed inputs or
+                silently change future projections.
               </p>
             </div>
           </>
