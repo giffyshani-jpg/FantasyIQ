@@ -49,6 +49,7 @@ export interface FootballPlayer {
   lineupStatus: FootballLineupStatus;
   photoUrl?: string | null;
   credits: number | null;
+  creditSource?: "thesportsdb" | "screenshot" | null;
   stats: FootballPlayerStats;
   /** True only when the provider supplied at least one player stat. */
   statsAvailable: boolean;

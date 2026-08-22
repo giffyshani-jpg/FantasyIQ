@@ -80,9 +80,21 @@ function optionalText(...values) {
 function mapFootballPosition(...values) {
   const position = optionalText(...values)?.toLowerCase() ?? "";
   if (position === "gk" || position.includes("goal") || position.includes("keeper")) return "GK";
-  if (position === "cb" || position === "lb" || position === "rb" || position.includes("def")) return "DEF";
-  if (position === "cm" || position === "dm" || position === "am" || position.includes("mid")) return "MID";
-  if (position === "fw" || position === "st" || position.includes("forward") || position.includes("striker")) return "FWD";
+  if (
+    ["cb", "lb", "rb", "lwb", "rwb", "sw"].includes(position) ||
+    position.includes("def") ||
+    position.includes("back")
+  ) return "DEF";
+  if (
+    ["cm", "dm", "am", "lm", "rm"].includes(position) ||
+    position.includes("mid") ||
+    position.includes("wing")
+  ) return "MID";
+  if (
+    ["fw", "st", "cf", "ss", "lw", "rw"].includes(position) ||
+    position.includes("forward") ||
+    position.includes("striker")
+  ) return "FWD";
   return null;
 }
 
@@ -116,7 +128,14 @@ function normalizeFootballPlayer(raw, team) {
     penaltiesConceded: number("intPenaltiesConceded", "penaltiesConceded"),
     directFreeKickGoals: number("intDirectFreeKickGoals", "directFreeKickGoals"),
   };
-  const isStarter = raw.strSubstitute === "Yes" ? false : raw.strSubstitute === "No" ? true : null;
+  const substitute = optionalText(raw.strSubstitute, raw.substitute)?.toLowerCase();
+  const isStarter =
+    raw.isStarter === true || raw.isStarter === "true" || substitute === "no"
+      ? true
+      : raw.isStarter === false || raw.isStarter === "false" || substitute === "yes"
+        ? false
+        : null;
+  const credits = number("credits", "credit", "strCredits", "salary", "price", "value");
   return {
     id: `tsdb-football-player:${id}`,
     name,
@@ -128,7 +147,8 @@ function normalizeFootballPlayer(raw, team) {
     isStarter,
     lineupStatus: isStarter === true ? "starter" : isStarter === false ? "bench" : "unknown",
     photoUrl: optionalText(raw.strCutout, raw.strThumb),
-    credits: null,
+    credits,
+    creditSource: credits === null ? null : "thesportsdb",
     stats,
     statsAvailable: Object.values(stats).some((value) => value !== null),
     source: "thesportsdb",
@@ -349,7 +369,35 @@ export async function getGame(gameId) {
   const eventId = gameId.startsWith("tsdb-football:") ? gameId.slice(14) : gameId;
   const data = await fetchTsdb(`lookupevent.php?id=${eventId}`);
   const ev = data?.events?.[0];
-  return ev ? normalizeFootballEvent(ev) : null;
+  if (!ev) return null;
+  const game = normalizeFootballEvent(ev);
+  if (!game || game.players.length > 0) return game;
+
+  // Some competitions expose no event lineup, but do expose their current
+  // team rosters. Use those real provider records as a pool, while keeping
+  // starter status unknown rather than guessing it from a squad list.
+  const teamIds = [game.homeTeam.id, game.awayTeam.id].filter(Boolean);
+  const rosterResults = await Promise.all(
+    teamIds.map(async (teamId) => {
+      const roster = await fetchTsdb(`lookup_all_players.php?id=${teamId}`);
+      const team = teamId === game.homeTeam.id ? game.homeTeam : game.awayTeam;
+      return (roster?.player ?? [])
+        .map((player) => normalizeFootballPlayer(player, team))
+        .filter(Boolean);
+    }),
+  );
+  const players = rosterResults.flat();
+  if (!players.length) return game;
+  return {
+    ...game,
+    players,
+    homeTeam: { ...game.homeTeam, players: players.filter((player) => player.teamId === game.homeTeam.id) },
+    awayTeam: { ...game.awayTeam, players: players.filter((player) => player.teamId === game.awayTeam.id) },
+    lineupAvailable: false,
+    lineupStatus: "unavailable",
+    lineupSource: null,
+    playerStatsAvailable: players.some((player) => player.statsAvailable),
+  };
 }
 
 /** Placeholder — football player game logs not yet implemented. */
