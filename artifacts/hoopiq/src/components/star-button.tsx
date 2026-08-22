@@ -22,6 +22,7 @@ export function StarButton({ active, onToggle, label, size = 18, className = "" 
       aria-pressed={active}
       onClick={(e) => {
         e.stopPropagation();
+        e.preventDefault();
         onToggle();
       }}
       className={`shrink-0 p-0.5 transition-colors ${active ? "text-amber-400" : "text-muted-foreground hover:text-amber-400"} ${className}`}

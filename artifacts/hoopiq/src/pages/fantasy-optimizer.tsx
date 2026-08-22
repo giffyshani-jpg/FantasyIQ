@@ -47,6 +47,7 @@ import {
 import type { OcrProgress } from "../lib/ocr-import";
 import { minutesValue, playerSortTier } from "../lib/player-status";
 import { computeSavedLineupLiveStats } from "../lib/lineup-live";
+import { AiFantasyCoach } from "../components/ai-fantasy-coach";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -131,6 +132,7 @@ export default function FantasyOptimizer() {
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [avoidUsedPlayers, setAvoidUsedPlayers] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // ── Live update state ──────────────────────────────────────────────────
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -160,6 +162,14 @@ export default function FantasyOptimizer() {
     setPositionFilter(prefs.position);
     setFavoritesOnly(prefs.favoritesOnly);
     setAvoidUsedPlayers(prefs.avoidUsedPlayers ?? false);
+    // Auto-open filter panel when saved preferences have non-default filters active
+    // so users don't wonder why the list is already filtered.
+    const hasActive =
+      prefs.teamFilter !== "all" ||
+      prefs.position !== "all" ||
+      prefs.favoritesOnly ||
+      (prefs.avoidUsedPlayers ?? false);
+    if (hasActive) setFiltersOpen(true);
     setPrefsLoaded(true);
   }, []);
 
@@ -683,6 +693,85 @@ export default function FantasyOptimizer() {
     );
   }
 
+  // ── Clear lineup ──────────────────────────────────────────────────────────
+
+  function handleClearLineup() {
+    applyLineup({ playerIds: [], captainId: null, viceCaptainId: null });
+  }
+
+  // ── Auto-Pick Best ────────────────────────────────────────────────────────
+  //
+  // Greedy: pick the highest-FPTS active players that fit within the budget.
+  // If no credits are set, just picks the top LINEUP_SIZE by FPTS.
+  // Skips players who are OUT or marked didNotPlay.
+
+  function handleAutoPick() {
+    if (players.length === 0) return;
+
+    // Exclude players who definitely won't play.
+    const eligible = players.filter(
+      (p) => p.injuryStatus !== "OUT" && !p.didNotPlay,
+    );
+    const pool = eligible.length >= LINEUP_SIZE ? eligible : players;
+
+    // Sort highest FPTS first (fall back to alphabetical for ties).
+    const sorted = [...pool].sort((a, b) =>
+      b.baseFpts !== a.baseFpts
+        ? b.baseFpts - a.baseFpts
+        : a.name.localeCompare(b.name),
+    );
+
+    const hasCredits = Object.values(credits).some((c) => c !== undefined && c > 0);
+    const picked: string[] = [];
+
+    if (hasCredits && budget > 0) {
+      // Greedy within budget.
+      let remaining = budget;
+      for (const p of sorted) {
+        if (picked.length >= LINEUP_SIZE) break;
+        const cost = credits[p.id] ?? 0;
+        if (cost === 0 || remaining - cost >= 0) {
+          picked.push(p.id);
+          remaining -= cost;
+        }
+      }
+      // If greedy couldn't fill 8 (tight budget), top up from remaining pool.
+      if (picked.length < LINEUP_SIZE) {
+        for (const p of sorted) {
+          if (picked.length >= LINEUP_SIZE) break;
+          if (!picked.includes(p.id)) picked.push(p.id);
+        }
+      }
+    } else {
+      // No credits configured — just take top LINEUP_SIZE by FPTS.
+      for (const p of sorted) {
+        if (picked.length >= LINEUP_SIZE) break;
+        picked.push(p.id);
+      }
+    }
+
+    const finalIds = picked.slice(0, LINEUP_SIZE);
+
+    // Rank picked players by baseFpts descending to auto-assign C and VC.
+    const pickedPlayers = finalIds
+      .map((id) => pool.find((p) => p.id === id)!)
+      .filter(Boolean)
+      .sort((a, b) =>
+        b.baseFpts !== a.baseFpts
+          ? b.baseFpts - a.baseFpts
+          : a.name.localeCompare(b.name),
+      );
+
+    const autoCaptainId = pickedPlayers[0]?.id ?? null;
+    const autoVCId = pickedPlayers[1]?.id ?? null;
+
+    applyLineup({
+      playerIds: finalIds,
+      captainId: autoCaptainId,
+      viceCaptainId: autoVCId,
+    });
+  }
+
   // ── Loading / error states ───────────────────────────────────────────────
 
   if (game === null) {
@@ -696,12 +785,7 @@ export default function FantasyOptimizer() {
   if (!game) {
     return (
       <MobileLayout showBack title="Fantasy Optimizer">
-        <div className="p-12 flex flex-col items-center gap-3 text-center">
-          <p className="text-foreground font-semibold">Game unavailable</p>
-          <p className="text-muted-foreground text-sm max-w-[280px]">
-            This game couldn't be loaded. The link may be outdated or the game may have been removed from the schedule.
-          </p>
-        </div>
+        <div className="p-8 text-center text-muted-foreground">Game not found</div>
       </MobileLayout>
     );
   }
@@ -712,12 +796,25 @@ export default function FantasyOptimizer() {
     <MobileLayout showBack title="Fantasy Optimizer">
       <div className="flex flex-col">
 
+        {/* ── AI Fantasy Coach ──────────────────────────────────────────── */}
+        {players.length > 0 && (
+          <AiFantasyCoach
+            game={game}
+            league={league}
+            players={players}
+            credits={credits}
+          />
+        )}
+
         {/* ── Game context + budget ─────────────────────────────────────── */}
         <div className="p-4 border-b border-border bg-card flex flex-col gap-4">
           <div className="flex items-center gap-2 flex-wrap">
             {game.status === "in_progress" && (
-              <span className="flex items-center gap-1 text-[10px] font-bold uppercase text-red-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+              <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-primary">
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                </span>
                 Live
               </span>
             )}
@@ -769,7 +866,52 @@ export default function FantasyOptimizer() {
             />
           </label>
 
+          {/* Credit usage bar — shows spent vs. remaining vs. budget */}
+          {budget > 0 && (
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="text-muted-foreground">
+                  {totalCreditsUsed > 0 ? `${totalCreditsUsed.toLocaleString()} used` : "No credits assigned"}
+                </span>
+                <span
+                  className={
+                    remainingCredits < 0
+                      ? "text-destructive font-semibold"
+                      : budget > 0 && remainingCredits / budget < 0.15
+                        ? "text-amber-400 font-semibold"
+                        : "text-muted-foreground"
+                  }
+                >
+                  {remainingCredits < 0
+                    ? `${Math.abs(remainingCredits).toLocaleString()} over budget`
+                    : `${remainingCredits.toLocaleString()} remaining`}
+                </span>
+              </div>
+              <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    remainingCredits < 0
+                      ? "bg-destructive"
+                      : totalCreditsUsed / budget > 0.85
+                        ? "bg-amber-500"
+                        : "bg-primary"
+                  }`}
+                  style={{ width: `${Math.min((totalCreditsUsed / budget) * 100, 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={handleAutoPick}
+              disabled={players.length === 0}
+              className="text-xs font-semibold text-emerald-400 border border-emerald-500/40 rounded-md px-3 py-1.5 active:scale-[0.98] transition-transform hover:bg-emerald-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Auto-fill lineup with highest-FPTS players within budget"
+            >
+              ⚡ Auto-Pick Best
+            </button>
             <button
               type="button"
               onClick={() => handleSuggestCredits()}
@@ -785,6 +927,16 @@ export default function FantasyOptimizer() {
             >
               Reset Credits
             </button>
+            {lineup.playerIds.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearLineup}
+                className="text-xs font-semibold text-muted-foreground border border-border rounded-md px-3 py-1.5 active:scale-[0.98] transition-transform hover:text-destructive hover:border-destructive/40"
+                title="Clear the current lineup"
+              >
+                Clear Lineup
+              </button>
+            )}
             <button
               type="button"
               disabled={!isLineupValid}
@@ -801,7 +953,17 @@ export default function FantasyOptimizer() {
         </div>
 
         {/* ── Lineup summary grid ───────────────────────────────────────── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-border sticky top-0 z-10">
+        <div className="sticky top-0 z-10 border-b border-border bg-card">
+          {/* Progress bar */}
+          <div className="h-1 w-full bg-border">
+            <div
+              className={`h-full transition-all duration-300 ${
+                lineup.playerIds.length === LINEUP_SIZE ? "bg-primary" : "bg-primary/60"
+              }`}
+              style={{ width: `${(lineup.playerIds.length / LINEUP_SIZE) * 100}%` }}
+            />
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-border">
           {/* Lineup size */}
           <div className="bg-card p-3 flex flex-col gap-1">
             <span className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
@@ -867,35 +1029,170 @@ export default function FantasyOptimizer() {
               Remaining
             </span>
             <span
-              className={`text-xl font-bold tabular-nums ${remainingCredits < 0 ? "text-destructive" : "text-foreground"}`}
+              className={`text-xl font-bold tabular-nums ${
+                remainingCredits < 0
+                  ? "text-destructive"
+                  : budget > 0 && remainingCredits / budget < 0.2
+                    ? "text-amber-400"
+                    : "text-foreground"
+              }`}
             >
               {remainingCredits}
             </span>
           </div>
-        </div>
+          </div>{/* /grid */}
+        </div>{/* /sticky */}
 
-        {/* ── Validation messages ───────────────────────────────────────── */}
-        {validationErrors.length > 0 && (
-          <div className="mx-4 mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex flex-col gap-1.5">
-            <p className="text-[10px] font-bold tracking-wider uppercase text-amber-500">
-              Lineup Requirements
+        {/* ── Lineup requirements checklist ─────────────────────────────── */}
+        {lineupPlayers.length > 0 && (
+          <div className={`mx-4 mt-3 rounded-xl border px-4 py-3 flex flex-col gap-2 ${
+            isLineupValid
+              ? "border-emerald-500/30 bg-emerald-500/10"
+              : "border-amber-500/30 bg-amber-500/10"
+          }`}>
+            <p className="text-[10px] font-bold tracking-wider uppercase text-muted-foreground">
+              Lineup checklist
             </p>
-            {validationErrors.map((err, i) => (
-              <div key={i} className="flex items-start gap-2">
-                <span className="mt-0.5 shrink-0 w-3.5 h-3.5 rounded-full border-2 border-amber-500/60" />
-                <p className="text-xs text-amber-200 leading-snug">{validationMessage(err)}</p>
-              </div>
-            ))}
+            {/* Players filled */}
+            {(() => {
+              const playersDone = lineup.playerIds.length === LINEUP_SIZE;
+              return (
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-bold shrink-0 ${playersDone ? "text-emerald-400" : "text-muted-foreground"}`}>
+                    {playersDone ? "✓" : "○"}
+                  </span>
+                  <span className={`text-xs ${playersDone ? "text-muted-foreground" : "text-foreground/80"}`}>
+                    {lineup.playerIds.length}/{LINEUP_SIZE} players selected
+                  </span>
+                </div>
+              );
+            })()}
+            {/* Captain */}
+            {(() => {
+              const captainDone = !!lineup.captainId;
+              return (
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-bold shrink-0 ${captainDone ? "text-emerald-400" : "text-amber-400"}`}>
+                    {captainDone ? "✓" : "○"}
+                  </span>
+                  <span className={`text-xs ${captainDone ? "text-muted-foreground" : "text-amber-200/80"}`}>
+                    {captainDone
+                      ? `Captain: ${players.find((p) => p.id === lineup.captainId)?.name ?? "—"} (×2.0)`
+                      : "Set a Captain (×2.0) — tap C on any selected player"}
+                  </span>
+                </div>
+              );
+            })()}
+            {/* Vice Captain */}
+            {(() => {
+              const vcDone = !!lineup.viceCaptainId;
+              return (
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-bold shrink-0 ${vcDone ? "text-emerald-400" : "text-amber-400"}`}>
+                    {vcDone ? "✓" : "○"}
+                  </span>
+                  <span className={`text-xs ${vcDone ? "text-muted-foreground" : "text-amber-200/80"}`}>
+                    {vcDone
+                      ? `Vice Captain: ${players.find((p) => p.id === lineup.viceCaptainId)?.name ?? "—"} (×1.5)`
+                      : "Set a Vice Captain (×1.5) — tap VC on any selected player"}
+                  </span>
+                </div>
+              );
+            })()}
+            {/* Team limit violations */}
+            {validationErrors
+              .filter((e) => e.kind === "team_limit")
+              .map((e, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="text-xs font-bold shrink-0 text-destructive">✕</span>
+                  <span className="text-xs text-destructive/80 leading-snug">{validationMessage(e)}</span>
+                </div>
+              ))}
+            {isLineupValid && (
+              <p className="text-[10px] font-semibold text-emerald-400 mt-1">✓ Lineup is valid — ready to export</p>
+            )}
           </div>
         )}
 
-        {/* Valid lineup confirmation */}
-        {isLineupValid && lineupPlayers.length > 0 && (
-          <div className="mx-4 mt-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400 shrink-0">
-              <path d="M20 6 9 17l-5-5" />
-            </svg>
-            <p className="text-xs font-semibold text-emerald-300">Lineup is valid — ready to export</p>
+        {/* ── Lineup slot visualization ─────────────────────────────────── */}
+        {lineupPlayers.length > 0 && (
+          <div className="mx-4 mt-3 rounded-xl border border-border bg-card overflow-hidden">
+            <p className="px-3 py-2 border-b border-border bg-background text-[10px] font-bold tracking-wider uppercase text-muted-foreground">
+              Roster Slots ({lineupPlayers.length}/{LINEUP_SIZE})
+            </p>
+            <div className="divide-y divide-border/40">
+              {(() => {
+                // Build ordered slot list: C role first, VC second, remaining FLEX, then empty.
+                const captainPlayer = players.find((p) => p.id === lineup.captainId);
+                const vcPlayer = players.find((p) => p.id === lineup.viceCaptainId);
+                const flexPlayers = lineupPlayers.filter(
+                  (p) => p.id !== lineup.captainId && p.id !== lineup.viceCaptainId
+                );
+                const emptyCount = LINEUP_SIZE - lineupPlayers.length;
+
+                type SlotDef =
+                  | { kind: "captain"; player: typeof captainPlayer }
+                  | { kind: "vc"; player: typeof vcPlayer }
+                  | { kind: "flex"; player: (typeof lineupPlayers)[number] }
+                  | { kind: "empty" };
+
+                const slots: SlotDef[] = [
+                  { kind: "captain", player: captainPlayer },
+                  { kind: "vc", player: vcPlayer },
+                  ...flexPlayers.map((p) => ({ kind: "flex" as const, player: p })),
+                  ...Array.from({ length: emptyCount }, () => ({ kind: "empty" as const })),
+                ];
+
+                return slots.map((slot, idx) => {
+                  const isEmpty = slot.kind === "empty" || (slot.kind !== "flex" && !slot.player);
+                  const name =
+                    slot.kind === "flex" ? slot.player.name
+                    : slot.kind === "captain"
+                      ? slot.player?.name ?? null
+                      : slot.kind === "vc"
+                        ? slot.player?.name ?? null
+                        : null;
+                  const roleLabel = slot.kind === "captain" ? "C" : slot.kind === "vc" ? "VC" : "F";
+                  const mult = slot.kind === "captain" ? "×2.0" : slot.kind === "vc" ? "×1.5" : null;
+                  const roleCls =
+                    slot.kind === "captain"
+                      ? "bg-yellow-500 text-yellow-950"
+                      : slot.kind === "vc"
+                        ? "bg-sky-500 text-sky-950"
+                        : "bg-muted/60 text-muted-foreground";
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`flex items-center gap-2.5 px-3 py-2 ${isEmpty ? "opacity-40" : ""}`}
+                    >
+                      <span
+                        className={`inline-flex items-center justify-center w-7 h-5 rounded text-[9px] font-black shrink-0 ${roleCls}`}
+                      >
+                        {roleLabel}
+                      </span>
+                      <span className={`flex-1 text-xs truncate ${name ? "text-foreground font-medium" : "text-muted-foreground italic"}`}>
+                        {name
+                          ? name
+                          : slot.kind === "captain"
+                            ? "Set Captain — tap C on a player"
+                            : slot.kind === "vc"
+                              ? "Set Vice Captain — tap VC on a player"
+                              : "Empty slot"}
+                      </span>
+                      {mult && name && (
+                        <span className="text-[10px] font-semibold tabular-nums text-muted-foreground shrink-0">
+                          {mult}
+                        </span>
+                      )}
+                      {(slot.kind === "captain" || slot.kind === "vc") && !name && (
+                        <span className="text-[10px] font-semibold text-amber-400/80 shrink-0">Required</span>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
+            </div>
           </div>
         )}
 
@@ -1279,7 +1576,8 @@ export default function FantasyOptimizer() {
             className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           />
 
-          <div className="flex items-center gap-3">
+          {/* Sort row + Filters toggle */}
+          <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-muted-foreground shrink-0">Sort by</span>
             <select
               value={sortKey}
@@ -1300,100 +1598,152 @@ export default function FantasyOptimizer() {
             >
               {sortDir === "desc" ? "↓" : "↑"}
             </button>
-          </div>
-
-          {/* Team filter */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {(["all", "away", "home"] as TeamFilter[]).map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setTeamFilter(value)}
-                className={`text-xs font-semibold rounded-full px-3 py-1 border transition-colors ${
-                  teamFilter === value
-                    ? "bg-primary text-primary-foreground border-primary-border"
-                    : "border-border text-muted-foreground hover:bg-muted/40"
-                }`}
-              >
-                {value === "all"
-                  ? "All Teams"
-                  : value === "away"
-                    ? game.awayTeam.abbreviation
-                    : game.homeTeam.abbreviation}
-              </button>
-            ))}
-          </div>
-
-          {/* Position filter */}
-          {availablePositions.length > 0 && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <button
-                type="button"
-                onClick={() => setPositionFilter("all")}
-                className={`text-xs font-semibold rounded-full px-3 py-1 border transition-colors ${
-                  positionFilter === "all"
-                    ? "bg-primary text-primary-foreground border-primary-border"
-                    : "border-border text-muted-foreground hover:bg-muted/40"
-                }`}
-              >
-                All Positions
-              </button>
-              {availablePositions.map((position) => (
+            {/* Filters toggle button — badge shows count when filters are active and panel is hidden */}
+            {(() => {
+              const activeCount =
+                (teamFilter !== "all" ? 1 : 0) +
+                (positionFilter !== "all" ? 1 : 0) +
+                (favoritesOnly ? 1 : 0) +
+                (avoidUsedPlayers ? 1 : 0);
+              return (
                 <button
-                  key={position}
                   type="button"
-                  onClick={() => setPositionFilter(position)}
-                  className={`text-xs font-semibold rounded-full px-3 py-1 border transition-colors ${
-                    positionFilter === position
-                      ? "bg-primary text-primary-foreground border-primary-border"
-                      : "border-border text-muted-foreground hover:bg-muted/40"
+                  aria-label={filtersOpen ? "Hide filters" : "Show filters"}
+                  aria-expanded={filtersOpen}
+                  onClick={() => setFiltersOpen((v) => !v)}
+                  className={`h-9 shrink-0 rounded-md border px-2.5 flex items-center gap-1.5 text-xs font-semibold transition-colors ${
+                    filtersOpen
+                      ? "border-primary bg-primary/10 text-primary"
+                      : activeCount > 0
+                        ? "border-primary/50 bg-primary/5 text-primary"
+                        : "border-input text-muted-foreground hover:bg-muted/40"
                   }`}
                 >
-                  {position}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                  </svg>
+                  Filters
+                  {!filtersOpen && activeCount > 0 && (
+                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-black leading-none">
+                      {activeCount}
+                    </span>
+                  )}
+                  <span className="text-[10px] opacity-50 ml-0.5">{filtersOpen ? "▲" : "▼"}</span>
                 </button>
-              ))}
+              );
+            })()}
+          </div>
+
+          {/* Collapsible filter panel */}
+          {filtersOpen && (
+            <div className="flex flex-col gap-3 pt-1 border-t border-border/50">
+              {/* Team filter */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {(["all", "away", "home"] as TeamFilter[]).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setTeamFilter(value)}
+                    className={`text-xs font-semibold rounded-full px-3 py-1 border transition-colors ${
+                      teamFilter === value
+                        ? "bg-primary text-primary-foreground border-primary-border"
+                        : "border-border text-muted-foreground hover:bg-muted/40"
+                    }`}
+                  >
+                    {value === "all"
+                      ? "All Teams"
+                      : value === "away"
+                        ? game.awayTeam.abbreviation
+                        : game.homeTeam.abbreviation}
+                  </button>
+                ))}
+              </div>
+
+              {/* Position filter */}
+              {availablePositions.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setPositionFilter("all")}
+                    className={`text-xs font-semibold rounded-full px-3 py-1 border transition-colors ${
+                      positionFilter === "all"
+                        ? "bg-primary text-primary-foreground border-primary-border"
+                        : "border-border text-muted-foreground hover:bg-muted/40"
+                    }`}
+                  >
+                    All Positions
+                  </button>
+                  {availablePositions.map((position) => (
+                    <button
+                      key={position}
+                      type="button"
+                      onClick={() => setPositionFilter(position)}
+                      className={`text-xs font-semibold rounded-full px-3 py-1 border transition-colors ${
+                        positionFilter === position
+                          ? "bg-primary text-primary-foreground border-primary-border"
+                          : "border-border text-muted-foreground hover:bg-muted/40"
+                      }`}
+                    >
+                      {position}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Favorites only toggle */}
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-medium text-muted-foreground shrink-0">Favorites only</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={favoritesOnly}
+                  onClick={() => setFavoritesOnly((v) => !v)}
+                  className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${favoritesOnly ? "bg-primary" : "bg-muted"}`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${favoritesOnly ? "translate-x-4" : "translate-x-0"}`}
+                  />
+                </button>
+              </div>
+
+              {/* Avoid players already used in previous saved teams */}
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Avoid players used in other lineups
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={avoidUsedPlayers}
+                  onClick={() => setAvoidUsedPlayers((v) => !v)}
+                  className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${avoidUsedPlayers ? "bg-primary" : "bg-muted"}`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${avoidUsedPlayers ? "translate-x-4" : "translate-x-0"}`}
+                  />
+                </button>
+              </div>
             </div>
           )}
-
-          {/* Favorites only toggle */}
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-xs font-medium text-muted-foreground shrink-0">Favorites only</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={favoritesOnly}
-              onClick={() => setFavoritesOnly((v) => !v)}
-              className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${favoritesOnly ? "bg-primary" : "bg-muted"}`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${favoritesOnly ? "translate-x-4" : "translate-x-0"}`}
-              />
-            </button>
-          </div>
-
-          {/* Avoid players already used in previous saved teams */}
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-xs font-medium text-muted-foreground">
-              Avoid players already used in previous saved teams
-            </span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={avoidUsedPlayers}
-              onClick={() => setAvoidUsedPlayers((v) => !v)}
-              className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${avoidUsedPlayers ? "bg-primary" : "bg-muted"}`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${avoidUsedPlayers ? "translate-x-4" : "translate-x-0"}`}
-              />
-            </button>
-          </div>
         </div>
 
         {/* ── Player list ───────────────────────────────────────────────── */}
         <div className="flex flex-col gap-2 px-4 pb-12">
           {visiblePlayers.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground text-sm">No players found.</div>
+            search || teamFilter !== "all" || positionFilter !== "all" || favoritesOnly ? (
+              <div className="py-12 text-center text-muted-foreground text-sm">No players match your filters.</div>
+            ) : (
+              <div className="py-10 flex flex-col items-center gap-4 text-center">
+                <div className="text-4xl select-none">🏀</div>
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm font-semibold text-foreground">Ready to build your lineup</p>
+                  <p className="text-xs text-muted-foreground max-w-[240px] leading-relaxed">
+                    Tap <span className="font-semibold text-emerald-400">⚡ Auto-Pick Best</span> to fill instantly,
+                    or tap <span className="font-semibold text-primary">✦ Suggest Credits</span> then select players manually.
+                  </p>
+                </div>
+              </div>
+            )
           ) : (
             visiblePlayers.map((player) => {
               const isInLineup = lineup.playerIds.includes(player.id);
@@ -1492,7 +1842,7 @@ export default function FantasyOptimizer() {
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); assignCaptain(player.id); }}
-                          className={`w-7 h-7 rounded-full text-[10px] font-black border transition-colors flex items-center justify-center ${
+                          className={`w-8 h-8 rounded-full text-[11px] font-black border transition-colors flex items-center justify-center ${
                             role === "captain"
                               ? "bg-yellow-500 text-yellow-950 border-yellow-400"
                               : "border-border text-muted-foreground hover:bg-yellow-500/10 hover:border-yellow-500/40 hover:text-yellow-400"
@@ -1505,7 +1855,7 @@ export default function FantasyOptimizer() {
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); assignViceCaptain(player.id); }}
-                          className={`w-7 h-7 rounded-full text-[10px] font-black border transition-colors flex items-center justify-center ${
+                          className={`w-8 h-8 rounded-full text-[11px] font-black border transition-colors flex items-center justify-center ${
                             role === "vice_captain"
                               ? "bg-sky-500 text-sky-950 border-sky-400"
                               : "border-border text-muted-foreground hover:bg-sky-500/10 hover:border-sky-500/40 hover:text-sky-400"

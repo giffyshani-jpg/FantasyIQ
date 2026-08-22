@@ -4,12 +4,15 @@
 // each league. UI components only ever import from this file — never from a
 // provider module directly.
 //
-// Adding a new league:
+// Adding a new basketball league:
 //   1. Create src/providers/<league>.js implementing the provider contract.
 //   2. Add an entry to PROVIDERS below.
 //   3. Add an entry to LEAGUE_CONFIGS below.
 //   4. Add the key to ALL_LEAGUES.
 //   5. Add the key to LeagueKey in src/lib/types.ts.
+//
+// Cricket uses a separate auto-discovery architecture — see providers/cricket.js.
+// No code changes needed to add new cricket competitions.
 
 import * as nbaProvider from "./providers/nba";
 import * as wnbaProvider from "./providers/wnba";
@@ -17,6 +20,18 @@ import * as nblProvider from "./providers/nbl";
 import * as nznblProvider from "./providers/nznbl";
 import * as fibaProvider from "./providers/fiba";
 import * as nbaSummerProvider from "./providers/nba-summer";
+import * as cricketProvider from "./providers/cricket";
+import * as footballProvider from "./providers/football";
+
+// ─── Cricket provider adapter ──────────────────────────────────────────────
+// Wraps the cricket provider so it satisfies the same interface as basketball
+// providers (getLeagueOverview, getGame, getPlayerGameLog, getTeamSchedule).
+const cricketAdapter = {
+  getLeagueOverview: () => cricketProvider.getLeagueOverview(),
+  getGame: (gameId) => cricketProvider.fetchGameById(gameId),
+  getPlayerGameLog: () => Promise.resolve([]),
+  getTeamSchedule: () => Promise.resolve([]),
+};
 
 const PROVIDERS = {
   nba: nbaProvider,
@@ -25,6 +40,8 @@ const PROVIDERS = {
   nznbl: nznblProvider,
   fiba: fibaProvider,
   "nba-summer": nbaSummerProvider,
+  cricket: cricketAdapter,
+  football: footballProvider,
 };
 
 function getProvider(league) {
@@ -63,7 +80,7 @@ export const LEAGUE_CONFIGS = {
     accent: "text-sky-400",
     accentHover: "group-hover:text-sky-300",
     textLight: "text-sky-200",
-    active: true, // Runs July in Las Vegas
+    active: true,
   },
   nba: {
     name: "NBA",
@@ -74,7 +91,7 @@ export const LEAGUE_CONFIGS = {
     accent: "text-blue-400",
     accentHover: "group-hover:text-blue-300",
     textLight: "text-blue-200",
-    active: false, // Regular season returns ~October
+    active: false,
   },
   nbl: {
     name: "NBL",
@@ -85,7 +102,7 @@ export const LEAGUE_CONFIGS = {
     accent: "text-emerald-400",
     accentHover: "group-hover:text-emerald-300",
     textLight: "text-emerald-200",
-    active: false, // Season starts October 2026
+    active: false,
   },
   nznbl: {
     name: "NZ NBL",
@@ -96,7 +113,7 @@ export const LEAGUE_CONFIGS = {
     accent: "text-teal-400",
     accentHover: "group-hover:text-teal-300",
     textLight: "text-teal-200",
-    active: true, // Season runs May–August; games confirmed July 2026
+    active: true,
   },
   fiba: {
     name: "FIBA",
@@ -109,29 +126,29 @@ export const LEAGUE_CONFIGS = {
     textLight: "text-violet-200",
     active: true,
   },
+  cricket: {
+    name: "Cricket",
+    fullName: "Cricket — All Competitions",
+    description: "T20, ODI, Test & more",
+    color: "green",
+    gradient: "from-green-900 to-slate-900",
+    accent: "text-green-400",
+    accentHover: "group-hover:text-green-300",
+    textLight: "text-green-200",
+    active: true,
+  },
 };
-
-/**
- * Ordered list of leagues shown on the home page.
- * Data source status (July 2026):
- *   nba        → ESPN (off-season, next game Oct 2026)
- *   wnba       → ESPN (live ✅)
- *   nba-summer → ESPN NBA type-3 filter + NBA CDN fallback (active ✅)
- *   nbl        → ESPN (off-season, next game Oct 2026)
- *   nznbl      → TheSportsDB ID 5066 (in-season ✅)
- *   fiba       → ESPN (varies by tournament)
- */
 
 /** NBA and WNBA — rendered as full-width premium cards on the home page. */
 export const PRIMARY_LEAGUES = ["nba", "wnba"];
 
 /**
- * Secondary leagues — grouped under "Other Basketball" on the home page.
- * Summer League is rendered conditionally (only when it has live/upcoming games).
+ * Secondary basketball leagues — grouped under "Other Basketball".
+ * Summer League is shown only when it has active games.
  */
 export const SECONDARY_LEAGUES = ["nbl", "nznbl", "fiba", "nba-summer"];
 
-/** Full ordered list — used internally (data fetching, routing). */
+/** All basketball leagues used internally. Cricket is handled separately. */
 export const ALL_LEAGUES = [
   ...PRIMARY_LEAGUES,
   ...SECONDARY_LEAGUES,
@@ -154,18 +171,46 @@ async function safeCall(fn, fallback, label) {
   }
 }
 
-/**
- * Today's games for a league.
- * @param {string} league
- */
-export async function fetchGamesByLeague(league) {
-  return safeCall(() => getProvider(league).getTodayGames(), [], `fetchGamesByLeague(${league})`);
+// ── League overview cache ─────────────────────────────────────────────────────
+
+const OVERVIEW_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+const OVERVIEW_MEM_CACHE = new Map(); // key → { data, fetchedAt }
+const OVERVIEW_IN_FLIGHT = new Map(); // key → Promise
+
+function overviewCacheKey(league, scan) {
+  return `${league}:${scan ? "1" : "0"}`;
 }
+
+function getOverviewFromCache(key) {
+  // 1. Memory
+  const mem = OVERVIEW_MEM_CACHE.get(key);
+  if (mem && Date.now() - mem.fetchedAt < OVERVIEW_CACHE_TTL) return mem.data;
+  // 2. sessionStorage
+  try {
+    const raw = sessionStorage.getItem("fantasyiq:overview:" + key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Date.now() - parsed.fetchedAt < OVERVIEW_CACHE_TTL) {
+        OVERVIEW_MEM_CACHE.set(key, parsed); // promote to memory
+        return parsed.data;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+function setOverviewCache(key, data) {
+  const entry = { data, fetchedAt: Date.now() };
+  OVERVIEW_MEM_CACHE.set(key, entry);
+  try {
+    sessionStorage.setItem("fantasyiq:overview:" + key, JSON.stringify(entry));
+  } catch {}
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
  * Games for a specific YYYYMMDD date.
- * @param {string} league
- * @param {string} dateStr
  */
 export async function fetchGamesByLeagueAndDate(league, dateStr) {
   const provider = getProvider(league);
@@ -174,43 +219,216 @@ export async function fetchGamesByLeagueAndDate(league, dateStr) {
 }
 
 /**
+ * Games for a specific LOCAL calendar date (YYYYMMDD in the user's timezone).
+ *
+ * Unlike fetchGamesByLeagueAndDate, this also queries the ESPN previous-day
+ * scoreboard so that games played yesterday evening in US Eastern (which fall
+ * on the user's local "today" for IST / Australia / UK viewers) are included.
+ *
+ * Example: WNBA 7:30 PM ET Tuesday = 1:00 AM IST Wednesday.
+ *   - startTimeIso = "2026-07-27T23:30:00Z" → local date "2026-07-28" (IST)
+ *   - ESPN stores this under date "20260727"
+ *   - IST user navigates to "Today" (20260728) → this function queries both
+ *     20260728 AND 20260727, then keeps only games whose startTimeIso maps to
+ *     the LOCAL date 2026-07-28. The game is correctly returned. ✅
+ *
+ * @param {string} league        e.g. "wnba", "nba"
+ * @param {string} localDate     YYYYMMDD derived from the user's local clock
+ */
+export async function fetchGamesByLeagueAndLocalDate(league, localDate) {
+  const provider = getProvider(league);
+  const fn = provider.getGamesByDate ?? provider.getTodayGames;
+
+  // Compute the previous-day YYYYMMDD (local, not UTC)
+  const y    = parseInt(localDate.slice(0, 4), 10);
+  const mo   = parseInt(localDate.slice(4, 6), 10) - 1; // 0-indexed
+  const d    = parseInt(localDate.slice(6, 8), 10);
+  const prev = new Date(y, mo, d - 1);
+  const prevDate = [
+    String(prev.getFullYear()),
+    String(prev.getMonth() + 1).padStart(2, "0"),
+    String(prev.getDate()).padStart(2, "0"),
+  ].join("");
+
+  // Fetch current date AND previous date in parallel
+  const [curr, prevGames] = await Promise.all([
+    safeCall(() => fn(localDate), [], `fetchGamesByLeagueAndLocalDate(${league}, ${localDate})`),
+    safeCall(() => fn(prevDate),  [], `fetchGamesByLeagueAndLocalDate(${league}, ${prevDate})`),
+  ]);
+
+  // Merge, de-duplicate (current day takes precedence — freshest live status)
+  const byId = new Map();
+  for (const g of prevGames) byId.set(g.id, g);
+  for (const g of curr) byId.set(g.id, g);
+
+  // Filter to only games whose LOCAL date matches the requested date
+  const localDateIso = `${localDate.slice(0, 4)}-${localDate.slice(4, 6)}-${localDate.slice(6, 8)}`;
+  return [...byId.values()].filter((g) => {
+    if (!g.startTimeIso) return false;
+    try {
+      return new Date(g.startTimeIso).toLocaleDateString("en-CA") === localDateIso;
+    } catch {
+      return false;
+    }
+  });
+}
+
+/**
  * Timezone-safe league overview: { live, upcoming, lastPlayed }.
- *
- * Uses the provider's own status field — never local calendar dates — so a
- * currently-live game always appears as live regardless of viewer timezone.
- *
- * scan: true (default) — searches forward/backward to find upcoming/last
- * game even during off-season gaps. Use scan: false on the home page for a
- * fast first paint.
- *
- * @param {string} league
- * @param {{ scan?: boolean }} [options]
+ * For "cricket" — delegates to the cricket provider's auto-discovery.
  */
 export async function fetchLeagueOverview(league, options) {
-  return safeCall(
+  const scan = options?.scan ?? false;
+  const key = overviewCacheKey(league, scan);
+
+  const cached = getOverviewFromCache(key);
+  if (cached) return cached;
+
+  if (OVERVIEW_IN_FLIGHT.has(key)) return OVERVIEW_IN_FLIGHT.get(key);
+
+  const promise = safeCall(
     () => getProvider(league).getLeagueOverview(options),
     EMPTY_OVERVIEW,
     `fetchLeagueOverview(${league})`
-  );
+  ).then((result) => {
+    OVERVIEW_IN_FLIGHT.delete(key);
+    if (result && result !== EMPTY_OVERVIEW) setOverviewCache(key, result);
+    return result;
+  }).catch((err) => {
+    OVERVIEW_IN_FLIGHT.delete(key);
+    throw err;
+  });
+
+  OVERVIEW_IN_FLIGHT.set(key, promise);
+  return promise;
+}
+
+// ─── Cricket-specific exports ──────────────────────────────────────────────
+//
+// The cricket provider returns CricketGame objects (not basketball Game),
+// so these functions are exported separately for cricket-aware UI components.
+
+/**
+ * Returns the merged cricket overview across all competitions.
+ * Caches for 2 minutes. Live games refresh on demand via fetchCricketGame.
+ */
+export async function fetchCricketOverview() {
+  const key = "cricket:overview";
+  const cached = getOverviewFromCache(key);
+  if (cached) return cached;
+
+  if (OVERVIEW_IN_FLIGHT.has(key)) return OVERVIEW_IN_FLIGHT.get(key);
+
+  const promise = cricketProvider.getLeagueOverview().then((result) => {
+    OVERVIEW_IN_FLIGHT.delete(key);
+    if (result) {
+      setOverviewCache(key, result);
+      // Feature Session 5 — Bug 3 fix:
+      // Seed all schedule games into GAME_CACHE immediately so that any game
+      // shown on the schedule page is available for box-score navigation without
+      // requiring a TSDB lookupevent roundtrip.
+      //
+      // This prevents "UNK vs UNK" / "Unknown" in two scenarios:
+      //   1. Normal SPA navigation: overview loads → games seeded → box-score
+      //      opens → Provider 0 (GAME_CACHE) hits with full schedule data.
+      //   2. Direct URL navigation: Provider 2.5 calls getLeagueOverview() →
+      //      this seed runs → Provider 2 retry finds the game in DAY_CACHE.
+      const allGames = [
+        ...(result.live ?? []),
+        ...(result.upcoming ?? []),
+        ...(result.recentCompleted ?? []),
+        ...(result.lastPlayed ? [result.lastPlayed] : []),
+      ];
+      let seeded = 0;
+      for (const game of allGames) {
+        cricketProvider.seedGameCache(game);
+        seeded++;
+      }
+      if (seeded > 0) {
+        console.info(`[api] fetchCricketOverview: seeded ${seeded} games into GAME_CACHE`);
+      }
+    }
+    return result;
+  }).catch((err) => {
+    OVERVIEW_IN_FLIGHT.delete(key);
+    console.error("[api] fetchCricketOverview failed:", err?.message ?? err);
+    return { live: [], upcoming: [], lastPlayed: null, activeCompetitions: [] };
+  });
+
+  OVERVIEW_IN_FLIGHT.set(key, promise);
+  return promise;
+}
+
+/**
+ * Full cricket game detail (batting/bowling scorecard).
+ * gameId format: "{competitionSlug}:{espnEventId}"
+ */
+export async function fetchCricketGame(gameId, { noCache = false } = {}) {
+  return cricketProvider.fetchGameById(gameId, { noCache });
+}
+
+/**
+ * Player roster + stats for a cricket match (used by cricket optimizer).
+ */
+export async function fetchCricketRoster(gameId) {
+  return cricketProvider.fetchGameRoster(gameId);
+}
+
+// ── Game detail cache (basketball) ────────────────────────────────────────────
+
+const GAME_TTL_MS = {
+  in_progress: 30_000,
+  final: 5 * 60_000,
+  scheduled: 2 * 60_000,
+};
+const GAME_DEFAULT_TTL_MS = 30_000;
+
+const GAME_MEM_CACHE = new Map();
+const GAME_IN_FLIGHT = new Map();
+
+function getGameFromCache(key) {
+  const entry = GAME_MEM_CACHE.get(key);
+  if (!entry) return undefined;
+  const ttl = GAME_TTL_MS[entry.data?.status] ?? GAME_DEFAULT_TTL_MS;
+  return Date.now() - entry.fetchedAt < ttl ? entry.data : undefined;
+}
+
+function setGameCache(key, data) {
+  GAME_MEM_CACHE.set(key, { data, fetchedAt: Date.now() });
 }
 
 /**
  * Full game detail (box score) by game ID.
- * @param {string} gameId
- * @param {string} league
+ * For cricket games, use fetchCricketGame() instead.
  */
-export async function fetchGameById(gameId, league) {
-  return safeCall(
+export async function fetchGameById(gameId, league, { noCache = false } = {}) {
+  const key = `${gameId}:${league}`;
+
+  if (!noCache) {
+    const cached = getGameFromCache(key);
+    if (cached !== undefined) return cached;
+    if (GAME_IN_FLIGHT.has(key)) return GAME_IN_FLIGHT.get(key);
+  }
+
+  const promise = safeCall(
     () => getProvider(league).getGame(gameId),
     undefined,
     `fetchGameById(${gameId}, ${league})`
-  );
+  ).then((result) => {
+    GAME_IN_FLIGHT.delete(key);
+    if (result !== undefined) setGameCache(key, result);
+    return result;
+  }).catch((err) => {
+    GAME_IN_FLIGHT.delete(key);
+    throw err;
+  });
+
+  if (!noCache) GAME_IN_FLIGHT.set(key, promise);
+  return promise;
 }
 
 /**
  * Player historical game log (most recent first).
- * @param {string} playerId
- * @param {string} league
  */
 export async function fetchPlayerGameLog(playerId, league) {
   return safeCall(
@@ -222,13 +440,74 @@ export async function fetchPlayerGameLog(playerId, league) {
 
 /**
  * Team season schedule — used for back-to-back detection.
- * @param {string} teamId
- * @param {string} league
  */
 export async function fetchTeamSchedule(teamId, league) {
   return safeCall(
     () => getProvider(league).getTeamSchedule(teamId),
     [],
     `fetchTeamSchedule(${teamId}, ${league})`
+  );
+}
+
+// ─── Football-specific exports ─────────────────────────────────────────────
+//
+// Football uses TheSportsDB (same as cricket). Optional match fields are
+// passed through only when the provider supplies them.
+
+/**
+ * Returns football overview for today/yesterday/tomorrow.
+ */
+export async function fetchFootballOverview() {
+  const key = "football:overview";
+  const cached = getOverviewFromCache(key);
+  if (cached) return cached;
+  if (OVERVIEW_IN_FLIGHT.has(key)) return OVERVIEW_IN_FLIGHT.get(key);
+
+  const promise = safeCall(
+    () => footballProvider.getLeagueOverview(),
+    { live: [], upcoming: [], finished: [], lastPlayed: null },
+    "fetchFootballOverview"
+  ).then((result) => {
+    OVERVIEW_IN_FLIGHT.delete(key);
+    if (result) setOverviewCache(key, result);
+    return result;
+  }).catch((err) => {
+    OVERVIEW_IN_FLIGHT.delete(key);
+    console.error("[api] fetchFootballOverview failed:", err?.message ?? err);
+    return { live: [], upcoming: [], finished: [], lastPlayed: null };
+  });
+
+  OVERVIEW_IN_FLIGHT.set(key, promise);
+  return promise;
+}
+
+/** Returns all Soccer competitions exposed by TheSportsDB. */
+export async function fetchFootballCompetitions() {
+  return safeCall(
+    () => footballProvider.getCompetitions(),
+    [],
+    "fetchFootballCompetitions"
+  );
+}
+
+/**
+ * Football events for a specific YYYYMMDD date string.
+ */
+export async function fetchFootballGamesByDate(dateStr) {
+  return safeCall(
+    () => footballProvider.getGamesByDate(dateStr),
+    [],
+    `fetchFootballGamesByDate(${dateStr})`
+  );
+}
+
+/**
+ * Full football match detail by TheSportsDB event ID.
+ */
+export async function fetchFootballGame(gameId) {
+  return safeCall(
+    () => footballProvider.getGame(gameId),
+    null,
+    `fetchFootballGame(${gameId})`
   );
 }

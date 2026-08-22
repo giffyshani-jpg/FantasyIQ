@@ -47,13 +47,33 @@ export function inactiveStatusLabel(
 }
 
 /**
- * Starter/Bench label sourced directly from ESPN's per-athlete `starter`
- * flag. Returns null when unknown (pregame, no box score published yet) so
- * the UI can simply omit the badge rather than guessing.
+ * Lineup-role label sourced directly from ESPN's per-athlete `starter` flag.
+ *
+ * When ESPN has published the lineup (starter is a boolean), returns the
+ * confirmed label so the badge reads "Confirmed Starter" / "Confirmed Bench".
+ * These match the richer Pre-Game Intelligence labels used in pregame-intel.ts
+ * so the visual language is consistent across all views.
+ *
+ * When the game is scheduled and ESPN has not yet published the lineup
+ * (starter is undefined), returns "Unknown" rather than nothing — this
+ * signals to the user that no lineup data is available yet, rather than
+ * implying the player is active but unlabeled.
+ *
+ * For live/final games where starter is undefined (e.g. a DNP after lock),
+ * returns null so the existing DNP/OUT badge from inactiveStatusLabel carries
+ * the full story without duplication.
  */
-export function starterBadgeLabel(player: Player): "Starter" | "Bench" | null {
-  if (typeof player.starter !== "boolean") return null;
-  return player.starter ? "Starter" : "Bench";
+export function starterBadgeLabel(
+  player: Player,
+  gameStatus?: Game["status"],
+): "Confirmed Starter" | "Confirmed Bench" | "Unknown" | null {
+  if (typeof player.starter === "boolean") {
+    return player.starter ? "Confirmed Starter" : "Confirmed Bench";
+  }
+  // Lineup not yet announced — show Unknown only for scheduled games.
+  // For live/final, the DNP badge already conveys the absent-starter state.
+  if (gameStatus === "scheduled") return "Unknown";
+  return null;
 }
 
 /**

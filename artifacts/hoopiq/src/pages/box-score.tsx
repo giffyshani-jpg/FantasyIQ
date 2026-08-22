@@ -2,14 +2,16 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "wouter";
 import { MobileLayout } from "../components/layout";
 import { CompareBar } from "../components/compare-bar";
-import { StarButton } from "../components/star-button";
 import { PlayerStatusBadges } from "../components/player-status-badges";
 import { RecentFormBadge } from "../components/recent-form-badge";
 import { PlayerDetailSheet } from "../components/player-detail-sheet";
 import { PregameIntelPanel } from "../components/pregame-intel-panel";
+import { BasketballPredictionPanel } from "../components/basketball-prediction-panel";
 import { calculateFantasyPoints } from "../lib/stats";
 import { useComparisonSelection } from "../hooks/use-comparison-selection";
 import { useFavorites } from "../hooks/use-favorites";
+import { useRecentMatches } from "../hooks/use-recent-matches";
+import { recentBasketballMatch } from "../lib/recent-matches";
 import { useRecentForm } from "../hooks/use-recent-form";
 import { useLiveGame } from "../hooks/use-live-game";
 import {
@@ -99,7 +101,7 @@ export default function BoxScore() {
   const gameId = params.id;
   const league = params.league as import("../lib/types").LeagueKey;
 
-  const { game, lastUpdated, isLive } = useLiveGame(gameId, league);
+  const { game, lastUpdated, isLive, isStale } = useLiveGame(gameId, league);
 
   const [activeTab, setActiveTab] = useState<BoxScoreTab>("away");
   const [positionFilter, setPositionFilter] = useState("all");
@@ -114,6 +116,7 @@ export default function BoxScore() {
   const comparison = useComparisonSelection(gameId);
   const favorites = useFavorites();
   const recentForm = useRecentForm();
+  const { recordMatch } = useRecentMatches();
 
   // Restore the remembered tab/filters for this specific game.
   useEffect(() => {
@@ -140,6 +143,14 @@ export default function BoxScore() {
       gameId,
       Date.now(),
     );
+    // Record this match as recently viewed
+    recordMatch(recentBasketballMatch({
+      id: game.id,
+      league: game.league,
+      startTimeIso: game.startTimeIso,
+      homeTeam: { name: game.homeTeam.name, abbreviation: game.homeTeam.abbreviation },
+      awayTeam: { name: game.awayTeam.name, abbreviation: game.awayTeam.abbreviation },
+    }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.id]);
 
@@ -208,30 +219,7 @@ export default function BoxScore() {
   if (game === null) {
     return (
       <MobileLayout showBack title="Loading">
-        <div className="p-8 flex flex-col gap-4">
-          {/* Scoreboard skeleton */}
-          <div className="flex flex-col items-center gap-4 pt-4">
-            <div className="h-4 w-24 rounded-full bg-muted/50 animate-pulse" />
-            <div className="flex items-center gap-8">
-              <div className="flex flex-col items-center gap-2">
-                <div className="w-14 h-14 rounded-full bg-muted/50 animate-pulse" />
-                <div className="h-8 w-10 rounded-lg bg-muted/50 animate-pulse" />
-              </div>
-              <div className="h-4 w-4 rounded-full bg-muted/30 animate-pulse" />
-              <div className="flex flex-col items-center gap-2">
-                <div className="w-14 h-14 rounded-full bg-muted/50 animate-pulse" />
-                <div className="h-8 w-10 rounded-lg bg-muted/50 animate-pulse" />
-              </div>
-            </div>
-            <div className="h-9 w-48 rounded-xl bg-muted/40 animate-pulse" />
-          </div>
-          {/* Table skeleton */}
-          <div className="mt-4 flex flex-col gap-2">
-            {[0,1,2,3,4].map(i => (
-              <div key={i} className="h-10 rounded-lg bg-muted/30 animate-pulse" style={{ opacity: 1 - i * 0.15 }} />
-            ))}
-          </div>
-        </div>
+        <div className="p-8 text-center text-muted-foreground">Loading game...</div>
       </MobileLayout>
     );
   }
@@ -239,12 +227,7 @@ export default function BoxScore() {
   if (!game) {
     return (
       <MobileLayout showBack title="Not Found">
-        <div className="p-12 flex flex-col items-center gap-3 text-center">
-          <p className="text-foreground font-semibold">Game unavailable</p>
-          <p className="text-muted-foreground text-sm max-w-[280px]">
-            This game couldn't be loaded. The link may be outdated or the game may have been removed from the schedule.
-          </p>
-        </div>
+        <div className="p-8 text-center text-muted-foreground">Game not found</div>
       </MobileLayout>
     );
   }
@@ -255,80 +238,149 @@ export default function BoxScore() {
     <MobileLayout showBack title={`${game.awayTeam.abbreviation} vs ${game.homeTeam.abbreviation}`}>
 
       {/* Scoreboard Header */}
-      <div className="bg-card border-b border-border p-6 sm:p-8 flex flex-col items-center">
+      <div className="bg-gradient-to-b from-card to-card/80 border-b border-border px-6 py-6 sm:px-8 sm:py-8 flex flex-col items-center gap-4">
         {/* Status / period row */}
-        <div className="flex items-center gap-2 mb-4">
-          {isLive && (
-            <span className="flex items-center gap-1 text-[10px] font-bold uppercase text-red-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
-              Live
-            </span>
+        <div className="flex items-center gap-2">
+          {isLive ? (
+            <>
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary" />
+              </span>
+              <span className="text-[11px] font-black uppercase tracking-widest text-primary">
+                {game.period}{game.clock ? ` · ${game.clock}` : ""}
+              </span>
+            </>
+          ) : (
+            <div className="text-xs font-bold tracking-widest text-muted-foreground uppercase px-2.5 py-1 rounded-full bg-muted/40">
+              {game.status === "scheduled" ? (game.startTime || "Scheduled") : (game.period || "Final")}
+              {game.status !== "scheduled" && game.clock && ` · ${game.clock}`}
+            </div>
           )}
-          <div className="text-xs sm:text-sm font-semibold tracking-wider text-muted-foreground uppercase">
-            {game.status === "scheduled" ? game.startTime : game.period}
-            {game.clock && ` - ${game.clock}`}
-          </div>
         </div>
 
-        <div className="flex justify-between items-center w-full max-w-[280px] sm:max-w-sm">
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-secondary flex items-center justify-center text-lg sm:text-xl font-bold text-secondary-foreground border-2 border-border shadow-sm">
-              {game.awayTeam.abbreviation}
+        {/* Teams + scores */}
+        {(() => {
+          const awayScore = game.awayTeam.score;
+          const homeScore = game.homeTeam.score;
+          const isFinal = game.status === "final";
+          const awayWon = isFinal && (awayScore ?? 0) > (homeScore ?? 0);
+          const homeWon = isFinal && (homeScore ?? 0) > (awayScore ?? 0);
+          const awayLeading = isLive && (awayScore ?? 0) > (homeScore ?? 0);
+          const homeLeading = isLive && (homeScore ?? 0) > (awayScore ?? 0);
+          const hasScores = awayScore !== null && homeScore !== null;
+          return (
+            <div className="flex items-center justify-center gap-4 sm:gap-6 w-full max-w-xs">
+              {/* Away team */}
+              <div className="flex flex-col items-center gap-2 flex-1">
+                <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center text-base sm:text-lg font-black shrink-0 border-2 transition-colors ${
+                  awayWon ? "bg-foreground text-background border-foreground" :
+                  awayLeading ? "bg-primary/15 text-primary border-primary/40" :
+                  "bg-muted/50 text-foreground/80 border-border"
+                }`}>
+                  {game.awayTeam.abbreviation}
+                </div>
+                <div className="text-center">
+                  {hasScores ? (
+                    <span className={`text-3xl sm:text-4xl font-black tabular-nums tracking-tight ${
+                      awayWon || awayLeading ? "text-foreground" : "text-foreground/60"
+                    }`}>
+                      {awayScore}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-medium text-muted-foreground/60">–</span>
+                  )}
+                </div>
+                <span className="text-[11px] text-muted-foreground/60 text-center truncate max-w-[80px]">
+                  {game.awayTeam.abbreviation} · Away
+                </span>
+              </div>
+
+              {/* Center divider */}
+              <div className="flex flex-col items-center gap-1 shrink-0">
+                {hasScores && (
+                  <div className="text-2xl font-black text-border">:</div>
+                )}
+                {!hasScores && (
+                  <div className="text-xs font-bold text-muted-foreground/40 uppercase tracking-wider">vs</div>
+                )}
+              </div>
+
+              {/* Home team */}
+              <div className="flex flex-col items-center gap-2 flex-1">
+                <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center text-base sm:text-lg font-black shrink-0 border-2 transition-colors ${
+                  homeWon ? "bg-foreground text-background border-foreground" :
+                  homeLeading ? "bg-primary/15 text-primary border-primary/40" :
+                  "bg-muted/50 text-foreground/80 border-border"
+                }`}>
+                  {game.homeTeam.abbreviation}
+                </div>
+                <div className="text-center">
+                  {hasScores ? (
+                    <span className={`text-3xl sm:text-4xl font-black tabular-nums tracking-tight ${
+                      homeWon || homeLeading ? "text-foreground" : "text-foreground/60"
+                    }`}>
+                      {homeScore}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-medium text-muted-foreground/60">–</span>
+                  )}
+                </div>
+                <span className="text-[11px] text-muted-foreground/60 text-center truncate max-w-[80px]">
+                  {game.homeTeam.abbreviation} · Home
+                </span>
+              </div>
             </div>
-            <span className="font-bold text-2xl sm:text-3xl tabular-nums tracking-tight">
-              {game.awayTeam.score ?? "-"}
-            </span>
-          </div>
+          );
+        })()}
 
-          <div className="text-muted-foreground font-medium text-sm">AT</div>
-
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-secondary flex items-center justify-center text-lg sm:text-xl font-bold text-secondary-foreground border-2 border-border shadow-sm">
-              {game.homeTeam.abbreviation}
-            </div>
-            <span className="font-bold text-2xl sm:text-3xl tabular-nums tracking-tight">
-              {game.homeTeam.score ?? "-"}
-            </span>
-          </div>
-        </div>
-
-        {/* Last updated */}
-        {lastUpdated && (
-          <p className="mt-2 text-[10px] text-muted-foreground">
+        {/* Last updated / stale indicator */}
+        {isStale && isLive ? (
+          <p className="text-[10px] text-amber-400 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            Reconnecting…
+          </p>
+        ) : lastUpdated ? (
+          <p className="text-[10px] text-muted-foreground/60">
             {isLive ? "Auto-updating · " : ""}Updated {formatTime(lastUpdated)}
           </p>
-        )}
+        ) : null}
 
-        {/* Fantasy Optimizer and Play-by-Play require ESPN player data.
-            NZ NBL is sourced from TheSportsDB which has no box scores,
-            so these buttons are hidden for that league. */}
-        {league !== "nznbl" && (
-          <div className="mt-5 w-full max-w-[280px] sm:max-w-sm grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <Link href={`/${game.league}/game/${game.id}/optimizer`}>
-              <div className="rounded-xl bg-primary text-primary-foreground border border-primary-border py-2.5 px-4 flex items-center justify-center gap-2 text-sm font-semibold cursor-pointer active:scale-[0.98] transition-transform">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 2v20" /><path d="M2 12h20" /><circle cx="12" cy="12" r="10" />
-                </svg>
-                Fantasy Optimizer
-              </div>
-            </Link>
-            <Link href={`/${game.league}/game/${game.id}/plays`}>
+        <div className="mt-5 w-full max-w-[280px] sm:max-w-sm grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <Link href={`/${game.league}/game/${game.id}/optimizer`}>
+            <div className="rounded-xl bg-primary text-primary-foreground border border-primary-border py-2.5 px-4 flex items-center justify-center gap-2 text-sm font-semibold cursor-pointer active:scale-[0.98] transition-transform">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2v20" /><path d="M2 12h20" /><circle cx="12" cy="12" r="10" />
+              </svg>
+              Fantasy Optimizer
+            </div>
+          </Link>
+          <Link href={`/${game.league}/game/${game.id}/plays`}>
+            <div className="rounded-xl bg-secondary text-secondary-foreground border border-secondary-border py-2.5 px-4 flex items-center justify-center gap-2 text-sm font-semibold cursor-pointer active:scale-[0.98] transition-transform">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 6h16" /><path d="M4 12h10" /><path d="M4 18h7" />
+              </svg>
+              Play-by-Play
+            </div>
+          </Link>
+          {game.status === "final" && (
+            <Link href={`/${game.league}/game/${game.id}/analysis`}>
               <div className="rounded-xl bg-secondary text-secondary-foreground border border-secondary-border py-2.5 px-4 flex items-center justify-center gap-2 text-sm font-semibold cursor-pointer active:scale-[0.98] transition-transform">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 6h16" /><path d="M4 12h10" /><path d="M4 18h7" />
-                </svg>
-                Play-by-Play
+                Post-game AI Analysis
               </div>
             </Link>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Pre-Game Intelligence — replaces the (otherwise empty) roster
           table while the game hasn't started, so users see who's likely
           starting/injured without leaving this page. */}
       {game.status === "scheduled" ? (
-        <PregameIntelPanel game={game} league={league} lastUpdated={lastUpdated} />
+        <>
+          <BasketballPredictionPanel game={game} league={league} />
+          <PregameIntelPanel game={game} league={league} lastUpdated={lastUpdated} />
+        </>
       ) : (
         <>
       {/* Team Tabs */}
@@ -369,11 +421,15 @@ export default function BoxScore() {
 
       {/* Favorites filter */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-background">
-        <span className="text-xs font-medium text-muted-foreground">Favorites only</span>
+        <div>
+          <span className="text-xs font-medium text-muted-foreground">Favorites only</span>
+          <p className="text-[10px] text-muted-foreground/50 mt-0.5">Tap a player name to favorite them</p>
+        </div>
         <button
           type="button"
           role="switch"
           aria-checked={favoritesOnly}
+          aria-label="Show only favorited players"
           onClick={() => setFavoritesOnly((v) => !v)}
           className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${favoritesOnly ? "bg-primary" : "bg-muted"}`}
         >
@@ -403,8 +459,7 @@ export default function BoxScore() {
         <table className="w-full text-sm text-left whitespace-nowrap">
           <thead className="text-xs text-muted-foreground bg-muted/40 uppercase sticky top-0">
             <tr>
-              <th className="px-2 py-3 font-medium text-center w-10">★</th>
-              <th className="px-4 py-3 font-medium sticky left-10 bg-muted/95 z-10 shadow-[1px_0_0_0_var(--color-border)] min-w-[140px]">Player</th>
+              <th className="px-4 py-3 font-medium sticky left-0 bg-muted/95 z-10 shadow-[1px_0_0_0_var(--color-border)] min-w-[140px]">Player</th>
               <SortTh label="MIN" sortKey="min"  activeSortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
               <SortTh label="FPTS" sortKey="fpts" activeSortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
               <th className="px-3 py-3 font-medium text-right">L5</th>
@@ -420,12 +475,30 @@ export default function BoxScore() {
           <tbody className="divide-y divide-border">
             {visiblePlayers.length === 0 ? (
               <tr>
-                <td colSpan={12} className="px-4 py-10 text-center text-muted-foreground text-sm">
-                  {rosterPlayers.length === 0
-                    ? league === "nznbl"
-                      ? "Player stats are not available for NZ NBL — the data source (TheSportsDB) only publishes scores, not box scores."
-                      : "Player stats aren't available for this data source."
-                    : "No players match the current filters."}
+                <td colSpan={11} className="px-4 py-10 text-center text-sm">
+                  {rosterPlayers.length === 0 ? (
+                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                      <p className="text-sm">
+                        {league === "nznbl"
+                          ? "NZ NBL box scores come from TheSportsDB, which doesn't include player stats in the free tier."
+                          : league === "fiba"
+                            ? "Player stats aren't available for this FIBA event."
+                            : "Live player stats aren't available for this data source."}
+                      </p>
+                      {league === "nznbl" && (
+                        <p className="text-xs text-muted-foreground/60">
+                          Team scores and game schedules are still available above.
+                        </p>
+                      )}
+                    </div>
+                  ) : favoritesOnly ? (
+                    <div className="flex flex-col items-center gap-1.5 text-muted-foreground py-4">
+                      <p className="text-sm">No favorited players in this view.</p>
+                      <p className="text-xs text-muted-foreground/60">Tap any player's name to open their profile and add them to favorites.</p>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">No players match the current filters.</span>
+                  )}
                 </td>
               </tr>
             ) : (
@@ -433,18 +506,10 @@ export default function BoxScore() {
                 const fpts = calculateFantasyPoints(player.stats);
                 const isComparing = comparison.isSelected(player.id);
                 const disableAdd = comparison.isFull && !isComparing;
-                const isFavorite = favorites.isFavorite(player.id);
                 const form = recentForm.getForm(player.id);
                 return (
                   <tr key={player.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-2 py-3 text-center">
-                      <StarButton
-                        active={isFavorite}
-                        onToggle={() => favorites.toggleFavorite(player.id)}
-                        label={isFavorite ? `Unfavorite ${player.name}` : `Favorite ${player.name}`}
-                      />
-                    </td>
-                    <td className="px-4 py-3 sticky left-10 bg-card z-10 shadow-[1px_0_0_0_var(--color-border)]">
+                    <td className="px-4 py-3 sticky left-0 bg-card z-10 shadow-[1px_0_0_0_var(--color-border)]">
                       <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-1.5">
                           <button

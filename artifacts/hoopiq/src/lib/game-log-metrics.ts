@@ -15,6 +15,10 @@ export type GameLogMetrics = {
   fptsByGame: number[];
   avgFptsLast5: number | null;
   avgFptsLast10: number | null;
+  avgFptsLast20: number | null;
+  seasonAvgFpts: number | null;
+  homeAvgFpts: number | null;
+  awayAvgFpts: number | null;
   highFpts: number | null;
   lowFpts: number | null;
   /** Minutes for each game, newest-first. */
@@ -84,11 +88,22 @@ export function computeGameLogMetrics(entries: PlayerGameLogEntry[]): GameLogMet
 
   const last5 = fptsByGame.slice(0, 5);
   const last10 = fptsByGame.slice(0, 10);
+  const last20 = fptsByGame.slice(0, 20);
+  const homeFpts = entries
+    .map((entry, index) => entry.homeAway === "home" ? fptsByGame[index] : null)
+    .filter((value): value is number => value !== null);
+  const awayFpts = entries
+    .map((entry, index) => entry.homeAway === "away" ? fptsByGame[index] : null)
+    .filter((value): value is number => value !== null);
 
   return {
     fptsByGame,
     avgFptsLast5: average(last5),
     avgFptsLast10: average(last10),
+    avgFptsLast20: average(last20),
+    seasonAvgFpts: average(fptsByGame),
+    homeAvgFpts: average(homeFpts),
+    awayAvgFpts: average(awayFpts),
     highFpts: fptsByGame.length > 0 ? Math.max(...fptsByGame) : null,
     lowFpts: fptsByGame.length > 0 ? Math.min(...fptsByGame) : null,
     minutesByGame,

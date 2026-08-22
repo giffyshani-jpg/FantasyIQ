@@ -23,47 +23,6 @@ async function fetchTsdb(path) {
   return res.json();
 }
 
-// ─── NZ NBL team abbreviation lookup ─────────────────────────────────────────
-//
-// TheSportsDB does not include short abbreviations. Slicing the first 3 chars
-// of the full team name works for most cases but breaks for multi-word names
-// where the city name alone isn't distinctive enough (e.g. "Hawke's Bay Hawks"
-// → "HAW" vs "Haw"). This table maps known full names to their standard 3-char
-// codes; the fallback uses word initials (e.g. "Nelson Giants" → "NGT").
-
-const TEAM_ABBREVIATIONS = {
-  // NZ NBL (TheSportsDB league 5066)
-  "Canterbury Rams":      "CAN",
-  "Franklin Bulls":       "FRA",
-  "Hawke's Bay Hawks":    "HBH",
-  "Manawatu Jets":        "MAN",
-  "Nelson Giants":        "NEL",
-  "Otago Nuggets":        "OTA",
-  "Southland Sharks":     "STH",
-  "Supercity Rangers":    "SCR",
-  "Taranaki Mountainairs":"TAR",
-  "Waikato Pistons":      "WAI",
-  "Wellington Saints":    "WEL",
-};
-
-/**
- * Derive a 3-character team abbreviation.
- * Prefers the lookup table; falls back to the word-initials strategy
- * (e.g. "Hobart Chargers" → "HCH") so new teams look reasonable without
- * requiring a code change.
- *
- * @param {string|null|undefined} name  full team name from TSDB
- * @param {string} fallback             fallback string (e.g. "HOM")
- */
-function teamAbbr(name, fallback) {
-  if (!name) return fallback;
-  if (TEAM_ABBREVIATIONS[name]) return TEAM_ABBREVIATIONS[name];
-  // Word-initials: take first letter of each word, up to 3.
-  const initials = name.split(/\s+/).map((w) => w[0] ?? "").join("").toUpperCase();
-  if (initials.length >= 2) return initials.slice(0, 3).padEnd(3, initials[0]);
-  return name.slice(0, 3).toUpperCase() || fallback;
-}
-
 /**
  * Map a TheSportsDB event to our normalized Game shape.
  * TSDB events have no live score, so status is always "scheduled" or "final"
@@ -72,9 +31,48 @@ function teamAbbr(name, fallback) {
  * @param {object} ev   raw TSDB event
  * @param {string} leagueKey
  */
+/**
+ * Derive a short 3-letter abbreviation from a team name.
+ * Prefers the first 3 characters of the first word (city/region) to match
+ * the NBA-style convention (AUC for Auckland, WEL for Wellington, etc.).
+ * Falls back to full-name slice for single-word names.
+ */
+function makeAbbreviation(teamName) {
+  if (!teamName) return "UNK";
+  const words = teamName.trim().split(/\s+/).filter(Boolean);
+  // Single word (e.g. "Hawks"): first 3 chars.
+  if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
+  // Multi-word: first 3 chars of the first word (city/region). This gives
+  // AUC (Auckland), WEL (Wellington), CAN (Canterbury), OTA (Otago), etc.
+  return words[0].slice(0, 3).toUpperCase();
+}
+
+/**
+ * Determine whether a TSDB event is finished.
+ * Handles: "Match Finished", "FT", "AET" (after extra time), "AP" (after penalties),
+ * and "Match Abandoned" (treat as final — scores exist, game won't continue).
+ */
+function isEventFinished(strStatus) {
+  const s = (strStatus ?? "").toLowerCase().trim();
+  return (
+    s.includes("match finished") ||
+    s === "ft" ||
+    s === "aet" ||         // after extra time
+    s === "ap" ||          // after penalties
+    s === "pso" ||         // penalty shoot-out completed
+    s.includes("abandoned")
+  );
+}
+
 function normalizeEvent(ev, leagueKey) {
-  const isFinished = (ev.strStatus ?? "").toLowerCase().includes("match finished") ||
-    (ev.strStatus ?? "").toLowerCase() === "ft";
+  const finished = isEventFinished(ev.strStatus);
+
+  // Postponed / cancelled games should stay as "scheduled" (not final)
+  // so they don't pollute the "Last Played" slot with a no-score entry.
+  const postponed =
+    (ev.strStatus ?? "").toLowerCase().includes("postponed") ||
+    (ev.strStatus ?? "").toLowerCase().includes("cancelled") ||
+    (ev.strStatus ?? "").toLowerCase().includes("canceled");
 
   let startTimeIso = null;
   let startTime = "";
@@ -97,20 +95,21 @@ function normalizeEvent(ev, leagueKey) {
     homeTeam: {
       id: ev.idHomeTeam ?? "",
       name: ev.strHomeTeam ?? "Home",
-      abbreviation: teamAbbr(ev.strHomeTeam, "HOM"),
+      abbreviation: makeAbbreviation(ev.strHomeTeam ?? "HOM"),
       score: homeScore,
       players: [],
     },
     awayTeam: {
       id: ev.idAwayTeam ?? "",
       name: ev.strAwayTeam ?? "Away",
-      abbreviation: teamAbbr(ev.strAwayTeam, "AWY"),
+      abbreviation: makeAbbreviation(ev.strAwayTeam ?? "AWY"),
       score: awayScore,
       players: [],
     },
     startTime,
     startTimeIso,
-    status: isFinished ? "final" : "scheduled",
+    // Postponed/cancelled events stay scheduled to avoid cluttering Last Played.
+    status: (finished && !postponed) ? "final" : "scheduled",
     period: "",
     clock: "",
   };

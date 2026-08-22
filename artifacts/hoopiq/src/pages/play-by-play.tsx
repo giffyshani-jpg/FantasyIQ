@@ -63,7 +63,11 @@ export default function PlayByPlay() {
   if (game === null) {
     return (
       <MobileLayout showBack title="Play-by-Play">
-        <div className="p-8 text-center text-muted-foreground">Loading game...</div>
+        <div className="p-6 flex flex-col gap-3">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-12 rounded-xl bg-muted/40 animate-pulse" />
+          ))}
+        </div>
       </MobileLayout>
     );
   }
@@ -71,11 +75,9 @@ export default function PlayByPlay() {
   if (!game) {
     return (
       <MobileLayout showBack title="Play-by-Play">
-        <div className="p-12 flex flex-col items-center gap-3 text-center">
-          <p className="text-foreground font-semibold">Game unavailable</p>
-          <p className="text-muted-foreground text-sm max-w-[280px]">
-            This game couldn't be loaded. The link may be outdated or the game may have been removed from the schedule.
-          </p>
+        <div className="p-8 text-center text-muted-foreground">
+          <p className="font-semibold">Game not found</p>
+          <p className="text-xs mt-1 text-muted-foreground/60">This game may no longer be available.</p>
         </div>
       </MobileLayout>
     );

@@ -228,6 +228,7 @@ export type PregamePlayerIntel = {
   position: string;
   teamId: string;
   teamAbbreviation: string;
+  isHome: boolean;
   status: LineupStatus;
   injuryStatus?: InjuryReportEntry["status"];
   avgMinutesLast5: number | null;
@@ -236,6 +237,10 @@ export type PregamePlayerIntel = {
   minutesTrend: "up" | "down" | "flat" | null;
   avgFptsLast5: number | null;
   avgFptsLast10: number | null;
+  avgFptsLast20: number | null;
+  seasonAvgFpts: number | null;
+  homeAvgFpts: number | null;
+  awayAvgFpts: number | null;
   formTrend: GameLogMetrics["trend"];
   consistency: GameLogMetrics["consistency"];
   recommendation: RecommendationTier;
