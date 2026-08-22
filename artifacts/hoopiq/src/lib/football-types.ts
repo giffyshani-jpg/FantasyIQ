@@ -1,6 +1,12 @@
 export type FootballMatchStatus = "scheduled" | "in_progress" | "final";
 
 export type FootballPosition = "GK" | "DEF" | "MID" | "FWD";
+export type FootballLineupStatus = "starter" | "bench" | "unknown";
+export type FootballCompetition = {
+  id: number | string;
+  name: string;
+  sport: "Soccer";
+};
 
 export type FootballMatchResult = "win" | "draw" | "loss" | null;
 
@@ -40,6 +46,7 @@ export interface FootballPlayer {
   teamName: string;
   teamAbbreviation: string;
   isStarter: boolean | null;
+  lineupStatus: FootballLineupStatus;
   photoUrl?: string | null;
   credits: number | null;
   stats: FootballPlayerStats;
@@ -79,6 +86,8 @@ export interface FootballGame {
   league: "football";
   players: FootballPlayer[];
   lineupAvailable: boolean;
+  lineupStatus: "confirmed" | "unavailable";
+  lineupSource: "thesportsdb" | null;
   playerStatsAvailable: boolean;
 }
 

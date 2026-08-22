@@ -8,12 +8,12 @@ All notable changes are documented here in reverse-chronological order.
 
 ### Changed
 
-- Published the existing Football entry point on the Home page.
-- Identified English Premier League through the existing TheSportsDB Football provider (`leagueId: 4328`); no Football data, lineup, position, stats, optimizer, or fantasy-rule logic was changed.
+- Published Football and added dynamic Soccer competition discovery via TheSportsDB, including an All competitions selector.
+- Added explicit football lineup states and role-aware player filtering/sorting without fabricating players, credits, or statistics.
 
-### Verification
+### Limitations
 
-- Targeted Football TypeScript check and production build passed.
+- TheSportsDB's free Football feed may omit confirmed XI/substitutes, credits, historical form, and player statistics; unavailable data remains clearly marked.
 
 ---
 

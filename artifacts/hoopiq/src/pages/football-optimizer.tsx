@@ -18,6 +18,7 @@ import type { FootballGame, FootballPlayer, FootballPosition } from "../lib/foot
 
 const POSITIONS: FootballPosition[] = ["GK", "DEF", "MID", "FWD"];
 const POSITION_LABELS: Record<FootballPosition, string> = { GK: "Goalkeeper", DEF: "Defender", MID: "Midfielder", FWD: "Forward" };
+type PlayerSort = "points" | "name" | "credits";
 
 function formatError(kind: ReturnType<typeof validateFootballLineup>[number]["kind"]): string {
   const labels: Record<string, string> = {
@@ -63,7 +64,7 @@ function PlayerRow({
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold truncate">{player.name}</p>
         <p className="text-[10px] text-muted-foreground/60 truncate">
-          {player.teamAbbreviation} · {player.statsAvailable ? `${points.toFixed(1)} provider points` : "Stats unavailable"}
+          {player.teamAbbreviation} · {player.lineupStatus === "starter" ? "Confirmed starter" : player.lineupStatus === "bench" ? "Confirmed bench" : "Lineup unknown"} · {player.statsAvailable ? `${points.toFixed(1)} provider points` : "Stats unavailable"}
           {typeof player.credits === "number" ? ` · ${player.credits} cr` : ""}
         </p>
       </div>
@@ -90,6 +91,8 @@ export default function FootballOptimizer() {
   const [captainId, setCaptainId] = useState<string | null>(null);
   const [viceCaptainId, setViceCaptainId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [positionFilter, setPositionFilter] = useState<FootballPosition | "ALL">("ALL");
+  const [playerSort, setPlayerSort] = useState<PlayerSort>("points");
 
   const load = useCallback(async () => {
     if (!id) {
@@ -127,6 +130,18 @@ export default function FootballOptimizer() {
     return total + calculateFootballFantasyPoints(player.stats, player.position).total * multiplier;
   }, 0);
   const creditsUsed = hasCredits ? selectedPlayers.reduce((sum, player) => sum + (player.credits ?? 0), 0) : null;
+  const visiblePlayers = useMemo(() => {
+    const filtered = positionFilter === "ALL" ? players : players.filter((player) => player.position === positionFilter);
+    return [...filtered].sort((a, b) => {
+      if (playerSort === "name") return a.name.localeCompare(b.name);
+      if (playerSort === "credits") {
+        const aCredits = typeof a.credits === "number" ? a.credits : Number.POSITIVE_INFINITY;
+        const bCredits = typeof b.credits === "number" ? b.credits : Number.POSITIVE_INFINITY;
+        return aCredits - bCredits || a.name.localeCompare(b.name);
+      }
+      return getFootballPlayerFantasyPoints(b) - getFootballPlayerFantasyPoints(a) || a.name.localeCompare(b.name);
+    });
+  }, [players, playerSort, positionFilter]);
 
   function togglePlayer(player: FootballPlayer) {
     if (selectedIds.includes(player.id)) {
@@ -188,6 +203,9 @@ export default function FootballOptimizer() {
               <p className="text-xs text-amber-100/65 mt-1.5 leading-relaxed">
                 TheSportsDB free football events currently provide match information but no lineup, positions, player statistics, or fantasy credits. FantasyIQ will not generate synthetic players, ratings, points, or credits.
               </p>
+              <p className="text-[10px] text-amber-100/50 mt-2">
+                Lineup status: {game.lineupStatus === "confirmed" ? "confirmed by TheSportsDB" : "unavailable from TheSportsDB"}.
+              </p>
             </div>
 
             <div className="rounded-2xl border border-border/40 bg-card p-4">
@@ -215,6 +233,24 @@ export default function FootballOptimizer() {
             ) : (
               <>
                 <div className="rounded-2xl border border-border/40 bg-card p-4">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <span className="text-xs font-black uppercase tracking-widest text-muted-foreground/70">Player pool</span>
+                    <span className="text-[10px] text-muted-foreground/45">{visiblePlayers.length} shown · API data only</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select value={positionFilter} onChange={(event) => setPositionFilter(event.target.value as FootballPosition | "ALL")} className="bg-muted/40 border border-border/50 rounded-lg px-2 py-2 text-xs font-bold">
+                      <option value="ALL">All roles</option>
+                      {POSITIONS.map((position) => <option key={position} value={position}>{POSITION_LABELS[position]}</option>)}
+                    </select>
+                    <select value={playerSort} onChange={(event) => setPlayerSort(event.target.value as PlayerSort)} className="bg-muted/40 border border-border/50 rounded-lg px-2 py-2 text-xs font-bold">
+                      <option value="points">Sort: provider points</option>
+                      <option value="credits">Sort: credits</option>
+                      <option value="name">Sort: name</option>
+                    </select>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/45 mt-2">Credits and statistics remain unavailable unless supplied by TheSportsDB.</p>
+                </div>
+                <div className="rounded-2xl border border-border/40 bg-card p-4">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-black uppercase tracking-widest text-muted-foreground/70">Lineup {selectedPlayers.length}/{FOOTBALL_LINEUP_SIZE}</span>
                     <span className="text-xs font-black text-green-300">{totalPoints.toFixed(1)} pts</span>
@@ -228,7 +264,7 @@ export default function FootballOptimizer() {
                   {validation.length > 0 && <p className="mt-3 text-[10px] text-amber-300/75">Needs attention: {Array.from(new Set(validation.map((item) => formatError(item.kind)))).join(", ")}.</p>}
                 </div>
                 <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
-                  {players.map((player) => <PlayerRow key={player.id} player={player} selected={selectedIds.includes(player.id)} captain={captainId === player.id} viceCaptain={viceCaptainId === player.id} onToggle={() => togglePlayer(player)} onCaptain={() => setCaptain(player.id)} onViceCaptain={() => setViceCaptain(player.id)} />)}
+                  {visiblePlayers.map((player) => <PlayerRow key={player.id} player={player} selected={selectedIds.includes(player.id)} captain={captainId === player.id} viceCaptain={viceCaptainId === player.id} onToggle={() => togglePlayer(player)} onCaptain={() => setCaptain(player.id)} onViceCaptain={() => setViceCaptain(player.id)} />)}
                 </div>
               </>
             )}

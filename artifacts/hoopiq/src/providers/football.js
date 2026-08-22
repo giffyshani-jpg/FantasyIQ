@@ -18,6 +18,8 @@ import { recordSuccess, recordFailure } from "../lib/provider-health";
 
 const TSDB_BASE = "https://www.thesportsdb.com/api/v1/json/3";
 const PROVIDER_NAME = "thesportsdb-football";
+const COMPETITION_CACHE_TTL = 30 * 60 * 1000;
+let competitionCache = null;
 
 // ── Known league IDs for bootstrap (supplement auto-discovery) ───────────────
 const KNOWN_LEAGUES = [
@@ -114,6 +116,7 @@ function normalizeFootballPlayer(raw, team) {
     penaltiesConceded: number("intPenaltiesConceded", "penaltiesConceded"),
     directFreeKickGoals: number("intDirectFreeKickGoals", "directFreeKickGoals"),
   };
+  const isStarter = raw.strSubstitute === "Yes" ? false : raw.strSubstitute === "No" ? true : null;
   return {
     id: `tsdb-football-player:${id}`,
     name,
@@ -122,7 +125,8 @@ function normalizeFootballPlayer(raw, team) {
     teamId: team.id,
     teamName: team.name,
     teamAbbreviation: team.abbreviation,
-    isStarter: raw.strSubstitute === "Yes" ? false : raw.strSubstitute === "No" ? true : null,
+    isStarter,
+    lineupStatus: isStarter === true ? "starter" : isStarter === false ? "bench" : "unknown",
     photoUrl: optionalText(raw.strCutout, raw.strThumb),
     credits: null,
     stats,
@@ -202,6 +206,7 @@ function normalizeFootballEvent(ev) {
     };
     const players = extractFootballPlayers(ev, homeTeam, awayTeam);
 
+    const lineupConfirmed = players.some((player) => player.lineupStatus !== "unknown");
     return {
       id: `tsdb-football:${ev.idEvent}`,
       leagueId: ev.idLeague,
@@ -221,7 +226,9 @@ function normalizeFootballEvent(ev) {
         : null,
       league: "football",
       players,
-      lineupAvailable: players.length > 0,
+      lineupAvailable: lineupConfirmed,
+      lineupStatus: lineupConfirmed ? "confirmed" : "unavailable",
+      lineupSource: lineupConfirmed ? "thesportsdb" : null,
       playerStatsAvailable: players.some((player) => player.statsAvailable),
     };
   } catch {
@@ -238,6 +245,41 @@ function getCachedDay(dateStr) {
   const e = DAY_CACHE.get(dateStr);
   if (e && Date.now() - e.fetchedAt < DAY_CACHE_TTL) return e.events;
   return null;
+}
+
+/**
+ * TheSportsDB's league directory is the source of truth for football
+ * competitions. The static list above is retained only as a degraded-mode
+ * fallback when the directory request is unavailable.
+ */
+export async function getCompetitions() {
+  if (competitionCache && Date.now() - competitionCache.fetchedAt < COMPETITION_CACHE_TTL) {
+    return competitionCache.competitions;
+  }
+
+  const data = await fetchTsdb("all_leagues.php");
+  const competitions = (data?.leagues ?? [])
+    .filter((league) => String(league.strSport ?? "").toLowerCase() === "soccer")
+    .map((league) => ({
+      id: String(league.idLeague),
+      name: league.strLeague,
+      sport: "Soccer",
+    }))
+    .filter((league) => league.id && league.name)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  // The free directory can return a partial catalogue, so merge its live
+  // results with the provider's bootstrap IDs without replacing discovery.
+  const merged = new Map(
+    KNOWN_LEAGUES.map((league) => [
+      String(league.id),
+      { id: String(league.id), name: league.name, sport: "Soccer" },
+    ])
+  );
+  for (const competition of competitions) merged.set(competition.id, competition);
+  const result = [...merged.values()].sort((a, b) => a.name.localeCompare(b.name));
+  competitionCache = { competitions: result, fetchedAt: Date.now() };
+  return result;
 }
 
 // ── Public provider API ───────────────────────────────────────────────────────
@@ -266,7 +308,7 @@ export async function getGamesByDate(dateStr) {
  * Football league overview — today, yesterday, tomorrow.
  * Returns { live, upcoming, finished, lastPlayed }.
  */
-export async function getLeagueOverview(_options) {
+export async function getLeagueOverview(options = {}) {
   const now = new Date();
   const dates = [-1, 0, 1].map(offset => {
     const d = new Date(now.getTime() + offset * 86_400_000);
@@ -278,7 +320,8 @@ export async function getLeagueOverview(_options) {
     const all = results
       .flatMap(r => r?.events ?? [])
       .map(normalizeFootballEvent)
-      .filter(Boolean);
+      .filter(Boolean)
+      .filter((game) => !options.competitionId || String(game.leagueId) === String(options.competitionId));
 
     const live = all.filter(g => g.status === "in_progress");
     const upcoming = all

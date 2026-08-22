@@ -481,6 +481,15 @@ export async function fetchFootballOverview() {
   return promise;
 }
 
+/** Returns all Soccer competitions exposed by TheSportsDB. */
+export async function fetchFootballCompetitions() {
+  return safeCall(
+    () => footballProvider.getCompetitions(),
+    [],
+    "fetchFootballCompetitions"
+  );
+}
+
 /**
  * Football events for a specific YYYYMMDD date string.
  */

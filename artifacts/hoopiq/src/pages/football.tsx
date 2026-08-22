@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { MobileLayout } from "../components/layout";
-import { fetchFootballOverview } from "../api";
-import type { FootballGame, FootballOverview, FootballTeam } from "../lib/football-types";
+import { fetchFootballCompetitions, fetchFootballOverview } from "../api";
+import type { FootballCompetition, FootballGame, FootballOverview, FootballTeam } from "../lib/football-types";
 import { StarButton } from "../components/star-button";
 import { FavoritesSection } from "../components/favorites-section";
 import { useMatchFavorites } from "../hooks/use-match-favorites";
@@ -10,6 +10,7 @@ import { footballFavorite } from "../lib/match-favorites";
 
 interface FootballPageState {
   overview: FootballOverview | null;
+  competitions: FootballCompetition[];
   loading: boolean;
   error: string | null;
   lastRefreshed: number | null;
@@ -208,16 +209,21 @@ function SkeletonCard() {
 export default function FootballPage() {
   const [state, setState] = useState<FootballPageState>({
     overview: null,
+    competitions: [],
     loading: true,
     error: null,
     lastRefreshed: null,
   });
+  const [selectedCompetition, setSelectedCompetition] = useState("all");
 
   const load = useCallback(async () => {
     setState((current) => ({ ...current, loading: true, error: null }));
     try {
-      const overview = await fetchFootballOverview() as FootballOverview;
-      setState({ overview, loading: false, error: null, lastRefreshed: Date.now() });
+      const [overview, competitions] = await Promise.all([
+        fetchFootballOverview() as Promise<FootballOverview>,
+        fetchFootballCompetitions() as Promise<FootballCompetition[]>,
+      ]);
+      setState({ overview, competitions, loading: false, error: null, lastRefreshed: Date.now() });
     } catch (error: unknown) {
       setState((current) => ({
         ...current,
@@ -229,9 +235,12 @@ export default function FootballPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const live = state.overview?.live ?? [];
-  const upcoming = state.overview?.upcoming ?? [];
-  const finished = state.overview?.finished ?? (state.overview?.lastPlayed ? [state.overview.lastPlayed] : []);
+  const filterGames = (games: FootballGame[]) => selectedCompetition === "all"
+    ? games
+    : games.filter((game) => String(game.leagueId) === selectedCompetition);
+  const live = filterGames(state.overview?.live ?? []);
+  const upcoming = filterGames(state.overview?.upcoming ?? []);
+  const finished = filterGames(state.overview?.finished ?? (state.overview?.lastPlayed ? [state.overview.lastPlayed] : []));
   const total = live.length + upcoming.length + finished.length;
   const refreshedLabel = useMemo(
     () => state.lastRefreshed ? new Date(state.lastRefreshed).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null,
@@ -260,6 +269,21 @@ export default function FootballPage() {
           </button>
         </header>
 
+        <label className="block mb-5">
+          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/55">Competition</span>
+          <select
+            value={selectedCompetition}
+            onChange={(event) => setSelectedCompetition(event.target.value)}
+            className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm font-semibold"
+            disabled={state.loading}
+          >
+            <option value="all">All competitions</option>
+            {state.competitions.map((competition) => (
+              <option key={competition.id} value={String(competition.id)}>{competition.name}</option>
+            ))}
+          </select>
+        </label>
+
         {state.loading && <div className="flex flex-col gap-3 mb-6">{[1, 2, 3].map((item) => <SkeletonCard key={item} />)}</div>}
 
         {!state.loading && state.error && (
@@ -286,7 +310,7 @@ export default function FootballPage() {
         )}
 
         <footer className="border-t border-border/30 pt-4 mt-2 text-center">
-          <p className="text-[10px] text-muted-foreground/35">TheSportsDB · optional match events appear only when provided by the source</p>
+          <p className="text-[10px] text-muted-foreground/35">TheSportsDB · competitions auto-discovered · lineup/stats shown only when supplied</p>
           {refreshedLabel && <p className="text-[9px] text-muted-foreground/25 mt-1">Updated {refreshedLabel}</p>}
         </footer>
       </div>

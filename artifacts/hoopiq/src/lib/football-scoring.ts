@@ -278,6 +278,10 @@ function expandStates(states: PickState[], candidates: FootballPlayer[], needed:
     .filter((state) => state.players.length <= needed);
 }
 
+function lineupPriority(player: FootballPlayer): number {
+  return player.lineupStatus === "starter" ? 0 : player.lineupStatus === "unknown" ? 1 : 2;
+}
+
 export function autoPickFootballLineup(
   players: FootballPlayer[],
   formation: FootballFormation,
@@ -296,7 +300,11 @@ export function autoPickFootballLineup(
   for (const position of ["GK", "DEF", "MID", "FWD"] as const) {
     const candidates = scorable
       .filter((player) => player.position === position)
-      .sort((a, b) => getFootballPlayerFantasyPoints(b) - getFootballPlayerFantasyPoints(a) || a.name.localeCompare(b.name))
+      .sort((a, b) =>
+        lineupPriority(a) - lineupPriority(b) ||
+        getFootballPlayerFantasyPoints(b) - getFootballPlayerFantasyPoints(a) ||
+        a.name.localeCompare(b.name)
+      )
       .slice(0, 12);
     if (candidates.length < formationCounts[position]) {
       return { ok: false, reason: "not_enough_players", message: `Optimization unavailable because the provider returned fewer than ${formationCounts[position]} real ${position} players.` };
