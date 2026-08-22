@@ -338,7 +338,7 @@ export default function Home() {
           href="/football"
           emoji="⚽"
           name="Football"
-          description="Top leagues · International · Cups"
+          description="English Premier League · Top leagues · Cups"
           loading={false}
           liveCount={0}
           upcomingCount={0}
@@ -346,7 +346,6 @@ export default function Home() {
           gradient="from-blue-950 to-slate-900"
           accentColor="text-blue-400"
           badgeColor="bg-blue-400"
-          comingSoon={true}
         />
 
         {/* Recently Viewed */}

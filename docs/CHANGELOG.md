@@ -4,6 +4,19 @@ All notable changes are documented here in reverse-chronological order.
 
 ---
 
+## [Unreleased] — English Premier League publication (August 22, 2026)
+
+### Changed
+
+- Published the existing Football entry point on the Home page.
+- Identified English Premier League through the existing TheSportsDB Football provider (`leagueId: 4328`); no Football data, lineup, position, stats, optimizer, or fantasy-rule logic was changed.
+
+### Verification
+
+- Targeted Football TypeScript check and production build passed.
+
+---
+
 ## [38b0a79] — v0.1.0 Beta Deployment Prep (August 4, 2026)
 
 ### Added
