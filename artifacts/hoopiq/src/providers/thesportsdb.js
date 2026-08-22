@@ -23,6 +23,47 @@ async function fetchTsdb(path) {
   return res.json();
 }
 
+// ─── NZ NBL team abbreviation lookup ─────────────────────────────────────────
+//
+// TheSportsDB does not include short abbreviations. Slicing the first 3 chars
+// of the full team name works for most cases but breaks for multi-word names
+// where the city name alone isn't distinctive enough (e.g. "Hawke's Bay Hawks"
+// → "HAW" vs "Haw"). This table maps known full names to their standard 3-char
+// codes; the fallback uses word initials (e.g. "Nelson Giants" → "NGT").
+
+const TEAM_ABBREVIATIONS = {
+  // NZ NBL (TheSportsDB league 5066)
+  "Canterbury Rams":      "CAN",
+  "Franklin Bulls":       "FRA",
+  "Hawke's Bay Hawks":    "HBH",
+  "Manawatu Jets":        "MAN",
+  "Nelson Giants":        "NEL",
+  "Otago Nuggets":        "OTA",
+  "Southland Sharks":     "STH",
+  "Supercity Rangers":    "SCR",
+  "Taranaki Mountainairs":"TAR",
+  "Waikato Pistons":      "WAI",
+  "Wellington Saints":    "WEL",
+};
+
+/**
+ * Derive a 3-character team abbreviation.
+ * Prefers the lookup table; falls back to the word-initials strategy
+ * (e.g. "Hobart Chargers" → "HCH") so new teams look reasonable without
+ * requiring a code change.
+ *
+ * @param {string|null|undefined} name  full team name from TSDB
+ * @param {string} fallback             fallback string (e.g. "HOM")
+ */
+function teamAbbr(name, fallback) {
+  if (!name) return fallback;
+  if (TEAM_ABBREVIATIONS[name]) return TEAM_ABBREVIATIONS[name];
+  // Word-initials: take first letter of each word, up to 3.
+  const initials = name.split(/\s+/).map((w) => w[0] ?? "").join("").toUpperCase();
+  if (initials.length >= 2) return initials.slice(0, 3).padEnd(3, initials[0]);
+  return name.slice(0, 3).toUpperCase() || fallback;
+}
+
 /**
  * Map a TheSportsDB event to our normalized Game shape.
  * TSDB events have no live score, so status is always "scheduled" or "final"
@@ -56,14 +97,14 @@ function normalizeEvent(ev, leagueKey) {
     homeTeam: {
       id: ev.idHomeTeam ?? "",
       name: ev.strHomeTeam ?? "Home",
-      abbreviation: (ev.strHomeTeam ?? "HOM").slice(0, 3).toUpperCase(),
+      abbreviation: teamAbbr(ev.strHomeTeam, "HOM"),
       score: homeScore,
       players: [],
     },
     awayTeam: {
       id: ev.idAwayTeam ?? "",
       name: ev.strAwayTeam ?? "Away",
-      abbreviation: (ev.strAwayTeam ?? "AWY").slice(0, 3).toUpperCase(),
+      abbreviation: teamAbbr(ev.strAwayTeam, "AWY"),
       score: awayScore,
       players: [],
     },

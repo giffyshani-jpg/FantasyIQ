@@ -696,7 +696,12 @@ export default function FantasyOptimizer() {
   if (!game) {
     return (
       <MobileLayout showBack title="Fantasy Optimizer">
-        <div className="p-8 text-center text-muted-foreground">Game not found</div>
+        <div className="p-12 flex flex-col items-center gap-3 text-center">
+          <p className="text-foreground font-semibold">Game unavailable</p>
+          <p className="text-muted-foreground text-sm max-w-[280px]">
+            This game couldn't be loaded. The link may be outdated or the game may have been removed from the schedule.
+          </p>
+        </div>
       </MobileLayout>
     );
   }

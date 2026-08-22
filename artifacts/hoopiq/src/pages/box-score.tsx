@@ -208,7 +208,30 @@ export default function BoxScore() {
   if (game === null) {
     return (
       <MobileLayout showBack title="Loading">
-        <div className="p-8 text-center text-muted-foreground">Loading game...</div>
+        <div className="p-8 flex flex-col gap-4">
+          {/* Scoreboard skeleton */}
+          <div className="flex flex-col items-center gap-4 pt-4">
+            <div className="h-4 w-24 rounded-full bg-muted/50 animate-pulse" />
+            <div className="flex items-center gap-8">
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-14 h-14 rounded-full bg-muted/50 animate-pulse" />
+                <div className="h-8 w-10 rounded-lg bg-muted/50 animate-pulse" />
+              </div>
+              <div className="h-4 w-4 rounded-full bg-muted/30 animate-pulse" />
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-14 h-14 rounded-full bg-muted/50 animate-pulse" />
+                <div className="h-8 w-10 rounded-lg bg-muted/50 animate-pulse" />
+              </div>
+            </div>
+            <div className="h-9 w-48 rounded-xl bg-muted/40 animate-pulse" />
+          </div>
+          {/* Table skeleton */}
+          <div className="mt-4 flex flex-col gap-2">
+            {[0,1,2,3,4].map(i => (
+              <div key={i} className="h-10 rounded-lg bg-muted/30 animate-pulse" style={{ opacity: 1 - i * 0.15 }} />
+            ))}
+          </div>
+        </div>
       </MobileLayout>
     );
   }
@@ -216,7 +239,12 @@ export default function BoxScore() {
   if (!game) {
     return (
       <MobileLayout showBack title="Not Found">
-        <div className="p-8 text-center text-muted-foreground">Game not found</div>
+        <div className="p-12 flex flex-col items-center gap-3 text-center">
+          <p className="text-foreground font-semibold">Game unavailable</p>
+          <p className="text-muted-foreground text-sm max-w-[280px]">
+            This game couldn't be loaded. The link may be outdated or the game may have been removed from the schedule.
+          </p>
+        </div>
       </MobileLayout>
     );
   }
@@ -271,24 +299,29 @@ export default function BoxScore() {
           </p>
         )}
 
-        <div className="mt-5 w-full max-w-[280px] sm:max-w-sm grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <Link href={`/${game.league}/game/${game.id}/optimizer`}>
-            <div className="rounded-xl bg-primary text-primary-foreground border border-primary-border py-2.5 px-4 flex items-center justify-center gap-2 text-sm font-semibold cursor-pointer active:scale-[0.98] transition-transform">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2v20" /><path d="M2 12h20" /><circle cx="12" cy="12" r="10" />
-              </svg>
-              Fantasy Optimizer
-            </div>
-          </Link>
-          <Link href={`/${game.league}/game/${game.id}/plays`}>
-            <div className="rounded-xl bg-secondary text-secondary-foreground border border-secondary-border py-2.5 px-4 flex items-center justify-center gap-2 text-sm font-semibold cursor-pointer active:scale-[0.98] transition-transform">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 6h16" /><path d="M4 12h10" /><path d="M4 18h7" />
-              </svg>
-              Play-by-Play
-            </div>
-          </Link>
-        </div>
+        {/* Fantasy Optimizer and Play-by-Play require ESPN player data.
+            NZ NBL is sourced from TheSportsDB which has no box scores,
+            so these buttons are hidden for that league. */}
+        {league !== "nznbl" && (
+          <div className="mt-5 w-full max-w-[280px] sm:max-w-sm grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Link href={`/${game.league}/game/${game.id}/optimizer`}>
+              <div className="rounded-xl bg-primary text-primary-foreground border border-primary-border py-2.5 px-4 flex items-center justify-center gap-2 text-sm font-semibold cursor-pointer active:scale-[0.98] transition-transform">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2v20" /><path d="M2 12h20" /><circle cx="12" cy="12" r="10" />
+                </svg>
+                Fantasy Optimizer
+              </div>
+            </Link>
+            <Link href={`/${game.league}/game/${game.id}/plays`}>
+              <div className="rounded-xl bg-secondary text-secondary-foreground border border-secondary-border py-2.5 px-4 flex items-center justify-center gap-2 text-sm font-semibold cursor-pointer active:scale-[0.98] transition-transform">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 6h16" /><path d="M4 12h10" /><path d="M4 18h7" />
+                </svg>
+                Play-by-Play
+              </div>
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Pre-Game Intelligence — replaces the (otherwise empty) roster
@@ -389,7 +422,9 @@ export default function BoxScore() {
               <tr>
                 <td colSpan={12} className="px-4 py-10 text-center text-muted-foreground text-sm">
                   {rosterPlayers.length === 0
-                    ? "Live player stats aren't available for this data source."
+                    ? league === "nznbl"
+                      ? "Player stats are not available for NZ NBL — the data source (TheSportsDB) only publishes scores, not box scores."
+                      : "Player stats aren't available for this data source."
                     : "No players match the current filters."}
                 </td>
               </tr>

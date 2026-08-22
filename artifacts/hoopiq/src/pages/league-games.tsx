@@ -177,7 +177,7 @@ export default function LeagueGames() {
         {loading ? (
           <Skeleton />
         ) : upcomingGames.length === 0 ? (
-          <EmptySection message="No upcoming games found in the next 45 days." />
+          <EmptySection message="No upcoming games found in the next 180 days." />
         ) : (
           <GameGrid games={upcomingGames} />
         )}

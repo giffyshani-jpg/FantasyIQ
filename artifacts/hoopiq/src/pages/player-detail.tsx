@@ -2,6 +2,7 @@ import React from "react";
 import { useParams, useSearch, Link } from "wouter";
 import { MobileLayout } from "../components/layout";
 import { InjuryBadge } from "../components/injury-badge";
+import { LEAGUE_CONFIGS } from "../api";
 import { FantasyTrendChart, MinutesTrendChart } from "../components/game-log-chart";
 import { usePlayerGameLog } from "../hooks/use-player-game-log";
 import { calculateFantasyPoints } from "../lib/stats";
@@ -215,7 +216,7 @@ export default function PlayerDetail() {
 
         <Link href={`/${league}`}>
           <div className="text-xs text-primary hover:underline underline-offset-2 cursor-pointer">
-            ← Back to {league.toUpperCase()} games
+            ← Back to {LEAGUE_CONFIGS[league]?.name ?? league.toUpperCase()} games
           </div>
         </Link>
       </div>
