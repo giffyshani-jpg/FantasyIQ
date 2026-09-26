@@ -1,6 +1,6 @@
-# [Project name]
+# FantasyIQ
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+FantasyIQ is a multi-sport fantasy analysis hub for real basketball, cricket, football, and European basketball data.
 
 ## Run & Operate
 
@@ -22,24 +22,40 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/hoopiq/src/api.js` — browser-facing provider registry and league metadata.
+- `artifacts/hoopiq/src/providers/` — sport data adapters; WNBA and existing basketball providers remain independent.
+- `artifacts/hoopiq/src/lib/*-scoring.ts` — sport-specific fantasy scoring and lineup validation.
+- `artifacts/hoopiq/src/pages/*optimizer.tsx` — user-facing optimizer flows.
+- `lib/api-spec/openapi.yaml` — source of truth for API contracts; generated clients and Zod schemas live under `lib/api-client-react` and `lib/api-zod`.
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- EuroLeague results are fetched from the official XML feed through the same-origin API server proxy because the official endpoint does not provide browser CORS.
+- Cricket contest guidance consumes the existing stats-based AI ratings but never changes cricket scoring profiles, credits, or the 11-player optimizer.
+- PKL accepts imported/provider player records rather than inventing a roster while no stable PKL player feed is configured.
+- Football captaincy prioritizes only explicit penalty/set-piece signals; it never infers those roles from position, goals, or fantasy points.
+- Existing WNBA and basketball provider/scoring pipelines are preserved as separate adapters.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Basketball schedules, box scores, analysis, player comparisons, injuries, and fantasy optimization across WNBA and supported leagues.
+- Cricket schedules, scorecards, format-aware scoring, an 11-player optimizer, AI player ratings, and small-/large-contest strategy guidance.
+- Football match discovery, lineup/formation validation, XI optimization, captain/vice-captain selection, and explicit set-piece/penalty-taker signals.
+- EuroLeague results and fixtures through the official feed proxy.
+- PKL seven-player optimization using Dream11-style kabaddi scoring, role limits, team limits, and imported real player projections.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Preserve existing WNBA, basketball, and sport scoring behavior when adding new sport features.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Run `pnpm --filter @workspace/api-spec run codegen` after changing `lib/api-spec/openapi.yaml`.
+- Restart `artifacts/api-server: API Server` after server or API contract changes, then verify `/api/healthz` and the changed route through the shared proxy.
+- The FantasyIQ remote is `fantasyiq`; `origin` may point to a different repository and must not be used for this branch.
+- Providers must not fabricate player data or credits when the upstream source does not supply them.
 
 ## Pointers
 
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- See `.agents/memory/espn-api-slugs.md` before adding ESPN-backed basketball leagues.
