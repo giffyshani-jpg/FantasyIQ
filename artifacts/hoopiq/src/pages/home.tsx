@@ -290,6 +290,19 @@ export default function Home() {
           </div>
         </Link>
 
+        <Link
+          href="/pkl"
+          className="group rounded-2xl border border-orange-700/25 bg-orange-950/[0.12] p-4 transition-colors hover:bg-orange-950/[0.22]"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-foreground">PKL Fantasy Optimizer</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground/70">Build a seven-player kabaddi team from real projected player data.</p>
+            </div>
+            <span className="text-xs font-bold text-orange-300 transition-transform group-hover:translate-x-0.5">Open →</span>
+          </div>
+        </Link>
+
         {/* Global live banner */}
         {!anyLoading && totalLive > 0 && (
           <LiveNowBanner totalLive={totalLive} sports={liveSports} />

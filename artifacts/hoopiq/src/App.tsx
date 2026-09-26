@@ -18,6 +18,7 @@ import PlayerComparison from './pages/player-comparison';
 import PlayerDetail from './pages/player-detail';
 import CricketBoxScore from './pages/cricket-box-score';
 import CricketOptimizer from './pages/cricket-optimizer';
+import PklOptimizer from './pages/pkl-optimizer';
 import BasketballAnalysis from './pages/basketball-analysis';
 import SmartScreenshotOptimizer from './pages/smart-screenshot-optimizer';
 import { MatchFavoritesProvider } from './hooks/use-match-favorites';
@@ -34,6 +35,7 @@ function Router() {
       <Route path="/basketball" component={BasketballPage} />
       <Route path="/cricket" component={CricketSchedule} />
       <Route path="/football" component={FootballPage} />
+      <Route path="/pkl" component={PklOptimizer} />
       <Route path="/smart-screenshot-optimizer" component={SmartScreenshotOptimizer} />
       <Route path="/football/:leagueId/game/:id/optimizer" component={FootballOptimizer} />
       <Route path="/football/:leagueId/game/:id" component={FootballMatchDetails} />
