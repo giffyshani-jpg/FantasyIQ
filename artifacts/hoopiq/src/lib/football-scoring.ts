@@ -133,6 +133,7 @@ export function calculateFootballFantasyPoints(
     total: 0,
     hasProviderStats: Object.values(stats).some(hasValue),
   };
+
   if (!position) return empty;
 
   const minutes = numeric(stats.minutes);
@@ -181,6 +182,22 @@ export function calculateFootballFantasyPoints(
 
 export function getFootballPlayerFantasyPoints(player: FootballPlayer): number {
   return calculateFootballFantasyPoints(player.stats, player.position).total;
+}
+
+function captainPriority(player: FootballPlayer): number {
+  // These flags are only explicit provider/user signals. Do not infer them
+  // from position, goals, assists, or any other fantasy statistic.
+  if (player.isPenaltyTaker === true) return 0;
+  if (player.isSetPieceTaker === true) return 1;
+  return 2;
+}
+
+function compareCaptainCandidates(a: FootballPlayer, b: FootballPlayer): number {
+  return (
+    captainPriority(a) - captainPriority(b) ||
+    getFootballPlayerFantasyPoints(b) - getFootballPlayerFantasyPoints(a) ||
+    a.name.localeCompare(b.name)
+  );
 }
 
 function countPositions(players: FootballPlayer[]): Record<FootballPosition, number> {
@@ -320,8 +337,10 @@ export function autoPickFootballLineup(
   if (!best) return { ok: false, reason: "no_valid_lineup", message: "No valid football XI satisfies the selected formation, team, and budget rules." };
 
   const picked = [...best.players].sort((a, b) => getFootballPlayerFantasyPoints(b) - getFootballPlayerFantasyPoints(a) || a.name.localeCompare(b.name));
-  const captainId = picked[0].id;
-  const viceCaptainId = picked[1].id;
+  const captainCandidates = [...picked].sort(compareCaptainCandidates);
+  const captainId = captainCandidates[0].id;
+  const viceCaptainId = captainCandidates.find((player) => player.id !== captainId)?.id ?? captainCandidates[1]?.id;
+  if (!viceCaptainId) return { ok: false, reason: "no_valid_lineup", message: "No valid captain and vice-captain pair is available for this lineup." };
   const errors = validateFootballLineup(picked, players, { formation, captainId, viceCaptainId, budget });
   if (errors.length) return { ok: false, reason: "no_valid_lineup", message: "The provider data could not form a valid XI under the selected football rules." };
   return { ok: true, players: picked, captainId, viceCaptainId, formation, creditsUsed: creditsFor(picked) };

@@ -77,6 +77,14 @@ function optionalText(...values) {
   return value ? value.trim() : null;
 }
 
+function optionalBoolean(...values) {
+  const value = values.find((candidate) => candidate !== null && candidate !== undefined && candidate !== "");
+  if (value === undefined) return null;
+  if (value === true || value === 1 || String(value).toLowerCase() === "true" || String(value).toLowerCase() === "yes") return true;
+  if (value === false || value === 0 || String(value).toLowerCase() === "false" || String(value).toLowerCase() === "no") return false;
+  return null;
+}
+
 function mapFootballPosition(...values) {
   const position = optionalText(...values)?.toLowerCase() ?? "";
   if (position === "gk" || position.includes("goal") || position.includes("keeper")) return "GK";
@@ -149,6 +157,17 @@ function normalizeFootballPlayer(raw, team) {
     photoUrl: optionalText(raw.strCutout, raw.strThumb),
     credits,
     creditSource: credits === null ? null : "thesportsdb",
+    isSetPieceTaker: optionalBoolean(
+      raw.isSetPieceTaker,
+      raw.setPieceTaker,
+      raw.isSetPiece,
+      raw.freeKickTaker,
+    ),
+    isPenaltyTaker: optionalBoolean(
+      raw.isPenaltyTaker,
+      raw.penaltyTaker,
+      raw.isPenaltyKickTaker,
+    ),
     stats,
     statsAvailable: Object.values(stats).some((value) => value !== null),
     source: "thesportsdb",

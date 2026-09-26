@@ -50,6 +50,10 @@ export interface FootballPlayer {
   photoUrl?: string | null;
   credits: number | null;
   creditSource?: "thesportsdb" | "screenshot" | null;
+  /** Explicit provider/user signal; never inferred from position or goals. */
+  isSetPieceTaker?: boolean | null;
+  /** Explicit provider/user signal; never inferred from position or goals. */
+  isPenaltyTaker?: boolean | null;
   stats: FootballPlayerStats;
   /** True only when the provider supplied at least one player stat. */
   statsAvailable: boolean;

@@ -51,6 +51,8 @@ function PlayerRow({
   onToggle,
   onCaptain,
   onViceCaptain,
+  onSetPieceTaker,
+  onPenaltyTaker,
 }: {
   player: FootballPlayer;
   selected: boolean;
@@ -59,6 +61,8 @@ function PlayerRow({
   onToggle: () => void;
   onCaptain: () => void;
   onViceCaptain: () => void;
+  onSetPieceTaker: () => void;
+  onPenaltyTaker: () => void;
 }) {
   const points = getFootballPlayerFantasyPoints(player);
   return (
@@ -77,6 +81,8 @@ function PlayerRow({
         <div className="flex gap-1 shrink-0">
           <button type="button" onClick={onCaptain} className={`text-[9px] font-black px-2 py-1 rounded border ${captain ? "bg-yellow-600 border-yellow-500 text-yellow-100" : "border-yellow-700/40 text-yellow-300"}`}>C</button>
           <button type="button" onClick={onViceCaptain} className={`text-[9px] font-black px-2 py-1 rounded border ${viceCaptain ? "bg-blue-600 border-blue-500 text-blue-100" : "border-blue-700/40 text-blue-300"}`}>VC</button>
+          <button type="button" onClick={onSetPieceTaker} title="Mark explicit set-piece taker" className={`text-[9px] font-black px-2 py-1 rounded border ${player.isSetPieceTaker === true ? "bg-purple-600 border-purple-500 text-purple-100" : "border-purple-700/40 text-purple-300"}`}>SP</button>
+          <button type="button" onClick={onPenaltyTaker} title="Mark explicit penalty taker" className={`text-[9px] font-black px-2 py-1 rounded border ${player.isPenaltyTaker === true ? "bg-orange-600 border-orange-500 text-orange-100" : "border-orange-700/40 text-orange-300"}`}>PK</button>
         </div>
       )}
       <button type="button" onClick={onToggle} className={`text-xs font-bold px-3 py-1.5 rounded-lg border shrink-0 ${selected ? "border-red-700/40 text-red-300" : "border-green-700/40 text-green-300"}`}>
@@ -95,6 +101,8 @@ export default function FootballOptimizer() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [captainId, setCaptainId] = useState<string | null>(null);
   const [viceCaptainId, setViceCaptainId] = useState<string | null>(null);
+  const [setPieceTakerIds, setSetPieceTakerIds] = useState<Set<string>>(new Set());
+  const [penaltyTakerIds, setPenaltyTakerIds] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState<string | null>(null);
   const [positionFilter, setPositionFilter] = useState<FootballPosition | "ALL">("ALL");
   const [playerSort, setPlayerSort] = useState<PlayerSort>("points");
@@ -129,14 +137,18 @@ export default function FootballOptimizer() {
     if (typeof player.credits === "number") return player.credits;
     return screenshotCredits[playerNameKey(player.name)] ?? null;
   };
-  const players = useMemo(
+  const players = useMemo<FootballPlayer[]>(
     () => providerPlayers.map((player) => {
       const credit = creditFor(player);
-      return credit === null || typeof player.credits === "number"
-        ? player
-        : { ...player, credits: credit, creditSource: "screenshot" as const };
+      return {
+        ...(credit === null || typeof player.credits === "number"
+          ? player
+          : { ...player, credits: credit, creditSource: "screenshot" as const }),
+        isSetPieceTaker: setPieceTakerIds.has(player.id) || player.isSetPieceTaker === true,
+        isPenaltyTaker: penaltyTakerIds.has(player.id) || player.isPenaltyTaker === true,
+      };
     }),
-    [providerPlayers, screenshotCredits],
+    [providerPlayers, screenshotCredits, setPieceTakerIds, penaltyTakerIds],
   );
   const selectedPlayers = useMemo(() => selectedIds.map((playerId) => players.find((player) => player.id === playerId)).filter((player): player is FootballPlayer => Boolean(player)), [players, selectedIds]);
   const hasCredits = players.length > 0 && players.every((player) => creditFor(player) !== null);
@@ -211,6 +223,16 @@ export default function FootballOptimizer() {
     setViceCaptainId((current) => current === playerId ? null : playerId);
   }
 
+  function toggleSignal(playerId: string, signal: "setPiece" | "penalty") {
+    const setter = signal === "setPiece" ? setSetPieceTakerIds : setPenaltyTakerIds;
+    setter((current) => {
+      const next = new Set(current);
+      if (next.has(playerId)) next.delete(playerId);
+      else next.add(playerId);
+      return next;
+    });
+  }
+
   function autoPick() {
     const result = autoPickFootballLineup(players, formation, budget);
     if (!result.ok) {
@@ -266,7 +288,8 @@ export default function FootballOptimizer() {
               <div className="grid grid-cols-4 gap-2 text-[10px] text-muted-foreground/65">
                 {POSITIONS.map((position) => <div key={position} className="rounded-lg bg-muted/20 border border-border/20 px-2 py-2 text-center"><span className="font-black text-foreground">{FOOTBALL_FORMATIONS[formation][position]}</span><br />{POSITION_LABELS[position]}</div>)}
               </div>
-              <p className="text-[10px] text-muted-foreground/45 mt-3">Rules: {FOOTBALL_LINEUP_SIZE} players · max {FOOTBALL_MAX_PLAYERS_PER_TEAM} from one team · Captain ×{FOOTBALL_CAPTAIN_MULTIPLIER} · Vice Captain ×{FOOTBALL_VICE_CAPTAIN_MULTIPLIER}</p>
+               <p className="text-[10px] text-muted-foreground/45 mt-3">Rules: {FOOTBALL_LINEUP_SIZE} players · max {FOOTBALL_MAX_PLAYERS_PER_TEAM} from one team · Captain ×{FOOTBALL_CAPTAIN_MULTIPLIER} · Vice Captain ×{FOOTBALL_VICE_CAPTAIN_MULTIPLIER}</p>
+               <p className="text-[10px] text-muted-foreground/45 mt-1">Auto-pick prioritizes explicitly marked penalty takers, then set-piece takers, then fantasy points. SP/PK marks are never inferred.</p>
               <button type="button" disabled={!players.length} onClick={autoPick} className="w-full mt-4 rounded-xl bg-green-900/30 border border-green-700/40 text-green-300 text-xs font-black py-2.5 disabled:opacity-40 disabled:cursor-not-allowed">Auto-Pick Best XI</button>
             </div>
 
@@ -336,7 +359,7 @@ export default function FootballOptimizer() {
                   {validation.length > 0 && <p className="mt-3 text-[10px] text-amber-300/75">Needs attention: {Array.from(new Set(validation.map((item) => formatError(item.kind)))).join(", ")}.</p>}
                 </div>
                 <div className="rounded-2xl border border-border/40 bg-card overflow-hidden">
-          {visiblePlayers.map((player) => <PlayerRow key={player.id} player={player} selected={selectedIds.includes(player.id)} captain={captainId === player.id} viceCaptain={viceCaptainId === player.id} onToggle={() => togglePlayer(player)} onCaptain={() => setCaptain(player.id)} onViceCaptain={() => setViceCaptain(player.id)} />)}
+           {visiblePlayers.map((player) => <PlayerRow key={player.id} player={player} selected={selectedIds.includes(player.id)} captain={captainId === player.id} viceCaptain={viceCaptainId === player.id} onToggle={() => togglePlayer(player)} onCaptain={() => setCaptain(player.id)} onViceCaptain={() => setViceCaptain(player.id)} onSetPieceTaker={() => toggleSignal(player.id, "setPiece")} onPenaltyTaker={() => toggleSignal(player.id, "penalty")} />)}
                 </div>
               </>
             )}
