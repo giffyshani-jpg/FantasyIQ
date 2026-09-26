@@ -28,6 +28,7 @@ import {
   type PlayerAIRating,
   type PlayerBadge,
 } from "../lib/ai-player-rating";
+import { getCricketContestStrategies, type CricketContestStrategy } from "../lib/cricket-contest-strategy";
 
 // ─── Constants ────────────────────────────────────────────────────────────
 
@@ -410,6 +411,36 @@ function DetectedFormatCard({ profile, competition }: { profile: ScoringProfile;
   );
 }
 
+function ContestStrategyCard({ strategies }: { strategies: CricketContestStrategy[] }) {
+  return (
+    <div className="rounded-2xl border border-cyan-700/30 bg-cyan-950/10 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-wider text-cyan-200">AI contest strategy</p>
+          <p className="mt-1 text-[10px] text-cyan-100/55">Stats-based guidance only; cricket scoring and lineup rules are unchanged.</p>
+        </div>
+        <span className="rounded-full border border-cyan-700/40 px-2 py-0.5 text-[9px] font-black text-cyan-300">AI</span>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {strategies.map((strategy) => (
+          <div key={strategy.contest} className="rounded-xl border border-border/30 bg-background/20 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-black text-foreground">{strategy.label}</p>
+              <span className="text-[9px] font-bold text-cyan-300">{strategy.risk}</span>
+            </div>
+            <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground/75">{strategy.captainPlan}</p>
+            <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground/75">{strategy.lineupPlan}</p>
+            <ul className="mt-2 list-disc space-y-1 pl-3 text-[10px] leading-relaxed text-muted-foreground/60">
+              {strategy.notes.map((note) => <li key={note}>{note}</li>)}
+            </ul>
+            <p className="mt-2 text-[9px] font-semibold text-cyan-300/70">Confidence {strategy.confidence}%</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────
 
 export default function CricketOptimizer() {
@@ -512,6 +543,11 @@ export default function CricketOptimizer() {
     }
     return map;
   }, [game?.id, game?.format, allPlayers]);
+
+  const contestStrategies = useMemo(
+    () => game ? getCricketContestStrategies(allPlayers, playerRatings, game.format) : [],
+    [allPlayers, game?.format, playerRatings],
+  );
 
   // ── Derived state ──────────────────────────────────────────────────────
   const creditsUsed = useMemo(() => {
@@ -635,6 +671,7 @@ export default function CricketOptimizer() {
               profile={profile}
               competition={game?.competitionName ?? ""}
             />
+            {contestStrategies.length > 0 && <ContestStrategyCard strategies={contestStrategies} />}
 
             {/* Fantasy provider note */}
             {fantasyLoading && (
