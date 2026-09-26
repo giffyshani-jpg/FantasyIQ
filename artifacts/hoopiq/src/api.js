@@ -22,6 +22,7 @@ import * as fibaProvider from "./providers/fiba";
 import * as nbaSummerProvider from "./providers/nba-summer";
 import * as cricketProvider from "./providers/cricket";
 import * as footballProvider from "./providers/football";
+import * as euroleagueProvider from "./providers/euroleague";
 
 // ─── Cricket provider adapter ──────────────────────────────────────────────
 // Wraps the cricket provider so it satisfies the same interface as basketball
@@ -42,6 +43,7 @@ const PROVIDERS = {
   "nba-summer": nbaSummerProvider,
   cricket: cricketAdapter,
   football: footballProvider,
+  euroleague: euroleagueProvider,
 };
 
 function getProvider(league) {
@@ -126,6 +128,17 @@ export const LEAGUE_CONFIGS = {
     textLight: "text-violet-200",
     active: true,
   },
+  euroleague: {
+    name: "EuroLeague",
+    fullName: "Turkish Airlines EuroLeague",
+    description: "European club basketball",
+    color: "rose",
+    gradient: "from-rose-950 to-slate-900",
+    accent: "text-rose-400",
+    accentHover: "group-hover:text-rose-300",
+    textLight: "text-rose-200",
+    active: true,
+  },
   cricket: {
     name: "Cricket",
     fullName: "Cricket — All Competitions",
@@ -146,7 +159,7 @@ export const PRIMARY_LEAGUES = ["nba", "wnba"];
  * Secondary basketball leagues — grouped under "Other Basketball".
  * Summer League is shown only when it has active games.
  */
-export const SECONDARY_LEAGUES = ["nbl", "nznbl", "fiba", "nba-summer"];
+export const SECONDARY_LEAGUES = ["nbl", "nznbl", "fiba", "euroleague", "nba-summer"];
 
 /** All basketball leagues used internally. Cricket is handled separately. */
 export const ALL_LEAGUES = [

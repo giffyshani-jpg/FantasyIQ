@@ -472,6 +472,7 @@ export default function BasketballPage() {
               { key: "nbl", label: "Australian NBL" },
               { key: "nznbl", label: "NZ NBL" },
               { key: "fiba", label: "FIBA" },
+              { key: "euroleague", label: "EuroLeague" },
               { key: "nba-summer", label: "NBA Summer" },
             ].map(({ key, label }) => (
               <Link key={key} href={`/${key}`}>

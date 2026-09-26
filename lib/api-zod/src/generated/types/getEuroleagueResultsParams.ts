@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
-}
+export type GetEuroleagueResultsParams = {
+/**
+ * @pattern ^[A-Z][A-Z0-9]{4,7}$
+ */
+seasoncode?: string;
+};

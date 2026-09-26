@@ -132,6 +132,7 @@ export type LeagueKey =
   | "nbl"
   | "nznbl"
   | "fiba"
+  | "euroleague"
   | "cricket";
 
 export type Game = {

@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: sports
+    description: Sports data proxy operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /euroleague/results:
+    get:
+      operationId: getEuroleagueResults
+      tags: [sports]
+      summary: Get EuroLeague results and fixtures
+      description: Proxies the official EuroLeague results feed and returns normalized games.
+      parameters:
+        - name: seasoncode
+          in: query
+          required: false
+          schema:
+            type: string
+            default: E2026
+            pattern: "^[A-Z][A-Z0-9]{4,7}$"
+      responses:
+        "200":
+          description: Normalized EuroLeague games
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EuroleagueGame"
+        "502":
+          description: Official feed unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +64,54 @@ components:
           type: string
       required:
         - status
+    EuroleagueGame:
+      type: object
+      required:
+        - id
+        - seasonCode
+        - date
+        - time
+        - gameCode
+        - homeTeam
+        - awayTeam
+        - played
+      properties:
+        id:
+          type: string
+        seasonCode:
+          type: string
+        date:
+          type: string
+        time:
+          type: string
+        gameCode:
+          type: string
+        round:
+          type: string
+        gameDay:
+          type: integer
+        group:
+          type: string
+        homeTeam:
+          type: object
+          required: [name, code, score]
+          properties:
+            name: { type: string }
+            code: { type: string }
+            score: { type: ["integer", "null"] }
+        awayTeam:
+          type: object
+          required: [name, code, score]
+          properties:
+            name: { type: string }
+            code: { type: string }
+            score: { type: ["integer", "null"] }
+        played:
+          type: boolean
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
 
