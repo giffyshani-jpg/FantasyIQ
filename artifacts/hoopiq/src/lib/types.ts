@@ -131,6 +131,7 @@ export type LeagueKey =
   | "wnba"
   | "nbl"
   | "nznbl"
+  | "cba"
   | "fiba"
   | "euroleague"
   | "cricket";

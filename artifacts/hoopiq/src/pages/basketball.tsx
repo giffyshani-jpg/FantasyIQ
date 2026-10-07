@@ -18,7 +18,12 @@ import React, { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { MobileLayout } from "../components/layout";
 import { GameCard } from "../components/game-card";
-import { fetchLeagueOverview, fetchGamesByLeagueAndLocalDate, LEAGUE_CONFIGS } from "../api";
+import {
+  fetchLeagueOverview,
+  fetchGamesByLeagueAndLocalDate,
+  LEAGUE_CONFIGS,
+  SECONDARY_LEAGUES,
+} from "../api";
 import { Game, LeagueKey, LeagueOverview } from "../lib/types";
 import {
   localDateKey,
@@ -35,6 +40,34 @@ function isGameSoon(game: Game): boolean {
   if (!game.startTimeIso) return false;
   const diff = new Date(game.startTimeIso).getTime() - Date.now();
   return diff < 48 * 3600 * 1000 && diff > -6 * 3600 * 1000;
+}
+
+const SECONDARY_LEAGUE_LABELS: Record<string, string> = {
+  nbl: "Australian NBL",
+  nznbl: "NZ NBL",
+  cba: "Chinese CBA",
+  fiba: "FIBA",
+  euroleague: "EuroLeague",
+  "nba-summer": "NBA Summer League",
+};
+
+const SECONDARY_LEAGUE_OPTIONS: Array<{ key: LeagueKey; label: string }> =
+  SECONDARY_LEAGUES.map((key: string) => ({
+    key: key as LeagueKey,
+    label: SECONDARY_LEAGUE_LABELS[key] ?? key,
+  }));
+
+const RECENT_COMPETITION_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+
+function hasRelevantCompetitionData(overview: LeagueOverview): boolean {
+  if ((overview.live?.length ?? 0) > 0 || (overview.upcoming?.length ?? 0) > 0) {
+    return true;
+  }
+
+  const lastPlayedAt = overview.lastPlayed?.startTimeIso;
+  if (!lastPlayedAt) return false;
+  const ageMs = Date.now() - new Date(lastPlayedAt).getTime();
+  return ageMs >= 0 && ageMs <= RECENT_COMPETITION_WINDOW_MS;
 }
 
 /**
@@ -283,6 +316,8 @@ export default function BasketballPage() {
   const [wnbaOverview, setWnbaOverview] = useState<LeagueOverview | null>(null);
   const [nbaLoading, setNbaLoading] = useState(true);
   const [wnbaLoading, setWnbaLoading] = useState(true);
+  const [visibleSecondaryLeagues, setVisibleSecondaryLeagues] = useState<LeagueKey[]>([]);
+  const [secondaryLeaguesLoading, setSecondaryLeaguesLoading] = useState(true);
 
   // Games for the currently-selected tab
   const [nbaGames, setNbaGames] = useState<Game[] | null>(null);
@@ -317,6 +352,25 @@ export default function BasketballPage() {
       })
       .catch(() => {
         if (!cancelled) setWnbaLoading(false);
+      });
+
+    Promise.all(
+      SECONDARY_LEAGUE_OPTIONS.map(async ({ key }) => {
+        try {
+          const overview = (await fetchLeagueOverview(key, { scan: false })) as LeagueOverview;
+          return hasRelevantCompetitionData(overview) ? key : null;
+        } catch {
+          return null;
+        }
+      }),
+    )
+      .then((keys) => {
+        if (!cancelled) {
+          setVisibleSecondaryLeagues(keys.filter((key): key is LeagueKey => key !== null));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSecondaryLeaguesLoading(false);
       });
 
     return () => {
@@ -462,31 +516,35 @@ export default function BasketballPage() {
           />
         </div>
 
-        {/* Other basketball leagues */}
-        <div className="rounded-2xl border border-border/30 border-dashed p-4 mb-4">
-          <p className="text-xs font-semibold text-muted-foreground/50 mb-2">
-            More Basketball
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { key: "nbl", label: "Australian NBL" },
-              { key: "nznbl", label: "NZ NBL" },
-              { key: "fiba", label: "FIBA" },
-              { key: "euroleague", label: "EuroLeague" },
-              { key: "nba-summer", label: "NBA Summer" },
-            ].map(({ key, label }) => (
-              <Link key={key} href={`/${key}`}>
-                <span className="inline-flex text-xs font-semibold text-muted-foreground/60 hover:text-foreground/80 bg-muted/40 hover:bg-muted/60 rounded-full px-3 py-1.5 transition-colors cursor-pointer">
-                  {label}
-                </span>
-              </Link>
-            ))}
+        {/* Other basketball leagues are shown only when schedules or recent results exist. */}
+        {(secondaryLeaguesLoading || visibleSecondaryLeagues.length > 0) && (
+          <div className="rounded-2xl border border-border/30 border-dashed p-4 mb-4">
+            <p className="text-xs font-semibold text-muted-foreground/50 mb-2">
+              More Basketball
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {secondaryLeaguesLoading ? (
+                <span className="text-xs text-muted-foreground/50">Checking current schedules…</span>
+              ) : (
+                visibleSecondaryLeagues.map((key) => {
+                  const option = SECONDARY_LEAGUE_OPTIONS.find((item) => item.key === key);
+                  if (!option) return null;
+                  return (
+                    <Link key={key} href={`/${key}`}>
+                      <span className="inline-flex text-xs font-semibold text-muted-foreground/60 hover:text-foreground/80 bg-muted/40 hover:bg-muted/60 rounded-full px-3 py-1.5 transition-colors cursor-pointer">
+                        {option.label}
+                      </span>
+                    </Link>
+                  );
+                })
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {!nbaLoading && !wnbaLoading && (
           <p className="text-[10px] text-muted-foreground/30 text-center">
-            Data: ESPN Site API
+            Basketball data: ESPN, TheSportsDB & EuroLeague
           </p>
         )}
       </div>

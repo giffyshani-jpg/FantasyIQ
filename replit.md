@@ -31,6 +31,8 @@ FantasyIQ is a multi-sport fantasy analysis hub for real basketball, cricket, fo
 ## Architecture decisions
 
 - EuroLeague results are fetched from the official XML feed through the same-origin API server proxy because the official endpoint does not provide browser CORS.
+- The basketball hub always renders NBA before WNBA; secondary competition links are shown only for live/upcoming schedules or results from the last 14 days.
+- Chinese CBA uses TheSportsDB league ID 4442 for schedules and completed results; its free feed has no live scores or player box scores.
 - Cricket contest guidance consumes the existing stats-based AI ratings but never changes cricket scoring profiles, credits, or the 11-player optimizer.
 - PKL accepts imported/provider player records rather than inventing a roster while no stable PKL player feed is configured.
 - Football captaincy prioritizes only explicit penalty/set-piece signals; it never infers those roles from position, goals, or fantasy points.
@@ -38,7 +40,7 @@ FantasyIQ is a multi-sport fantasy analysis hub for real basketball, cricket, fo
 
 ## Product
 
-- Basketball schedules, box scores, analysis, player comparisons, injuries, and fantasy optimization across WNBA and supported leagues.
+- Basketball schedules, box scores, analysis, player comparisons, injuries, and fantasy optimization across NBA, WNBA, and supported leagues including CBA.
 - Cricket schedules, scorecards, format-aware scoring, an 11-player optimizer, AI player ratings, and small-/large-contest strategy guidance.
 - Football match discovery, lineup/formation validation, XI optimization, captain/vice-captain selection, and explicit set-piece/penalty-taker signals.
 - EuroLeague results and fixtures through the official feed proxy.

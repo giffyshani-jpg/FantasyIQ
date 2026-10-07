@@ -57,6 +57,7 @@ function isEventFinished(strStatus) {
   return (
     s.includes("match finished") ||
     s === "ft" ||
+    s === "aot" ||         // after overtime
     s === "aet" ||         // after extra time
     s === "ap" ||          // after penalties
     s === "pso" ||         // penalty shoot-out completed
