@@ -21,16 +21,38 @@ import * as nznblProvider from "./providers/nznbl";
 import * as fibaProvider from "./providers/fiba";
 import * as nbaSummerProvider from "./providers/nba-summer";
 import * as cricketProvider from "./providers/cricket";
+import * as cricketDataProvider from "./providers/cricketdata";
 import * as footballProvider from "./providers/football";
 import * as euroleagueProvider from "./providers/euroleague";
 import * as cbaProvider from "./providers/cba";
+
+async function getCricketOverview() {
+  try {
+    return await cricketDataProvider.getLeagueOverview();
+  } catch (error) {
+    console.warn("[api] CricketData unavailable; using TheSportsDB fallback:", error?.message ?? error);
+    return cricketProvider.getLeagueOverview();
+  }
+}
+
+async function getCricketGame(gameId, options) {
+  if (typeof gameId === "string" && gameId.startsWith("cricapi:")) {
+    try {
+      const game = await cricketDataProvider.getGame(gameId, options);
+      if (game) return game;
+    } catch (error) {
+      console.warn("[api] CricketData match unavailable; using existing fallback:", error?.message ?? error);
+    }
+  }
+  return cricketProvider.fetchGameById(gameId, options);
+}
 
 // ─── Cricket provider adapter ──────────────────────────────────────────────
 // Wraps the cricket provider so it satisfies the same interface as basketball
 // providers (getLeagueOverview, getGame, getPlayerGameLog, getTeamSchedule).
 const cricketAdapter = {
-  getLeagueOverview: () => cricketProvider.getLeagueOverview(),
-  getGame: (gameId) => cricketProvider.fetchGameById(gameId),
+  getLeagueOverview: getCricketOverview,
+  getGame: getCricketGame,
   getPlayerGameLog: () => Promise.resolve([]),
   getTeamSchedule: () => Promise.resolve([]),
 };
@@ -345,7 +367,7 @@ export async function fetchCricketOverview() {
 
   if (OVERVIEW_IN_FLIGHT.has(key)) return OVERVIEW_IN_FLIGHT.get(key);
 
-  const promise = cricketProvider.getLeagueOverview().then((result) => {
+  const promise = getCricketOverview().then((result) => {
     OVERVIEW_IN_FLIGHT.delete(key);
     if (result) {
       setOverviewCache(key, result);
@@ -390,7 +412,7 @@ export async function fetchCricketOverview() {
  * gameId format: "{competitionSlug}:{espnEventId}"
  */
 export async function fetchCricketGame(gameId, { noCache = false } = {}) {
-  return cricketProvider.fetchGameById(gameId, { noCache });
+  return getCricketGame(gameId, { noCache });
 }
 
 /**

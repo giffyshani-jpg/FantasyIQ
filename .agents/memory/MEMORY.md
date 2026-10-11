@@ -1,1 +1,2 @@
 - [ESPN API league slugs](espn-api-slugs.md) — which basketball leagues ESPN's public API actually serves (some return 400).
+- [FantasyIQ checkout persistence](fantasyiq-checkout.md) — avoid relying on Git worktree metadata stored under ephemeral `/tmp` paths.
