@@ -13,9 +13,8 @@ export type FootballMatchResult = "win" | "draw" | "loss" | null;
 /**
  * Provider-supplied football match statistics.
  *
- * Every field is optional because TheSportsDB's free event feed commonly
- * returns no player statistics at all. Consumers must not replace null with
- * an estimate.
+ * Every field is optional because the free match and roster feeds commonly
+ * return no player statistics. Consumers must not replace null with an estimate.
  */
 export interface FootballPlayerStats {
   minutes?: number | null;
@@ -49,7 +48,7 @@ export interface FootballPlayer {
   lineupStatus: FootballLineupStatus;
   photoUrl?: string | null;
   credits: number | null;
-  creditSource?: "thesportsdb" | "screenshot" | null;
+  creditSource?: "thesportsdb" | "espn" | "screenshot" | null;
   /** Explicit provider/user signal; never inferred from position or goals. */
   isSetPieceTaker?: boolean | null;
   /** Explicit provider/user signal; never inferred from position or goals. */
@@ -57,7 +56,7 @@ export interface FootballPlayer {
   stats: FootballPlayerStats;
   /** True only when the provider supplied at least one player stat. */
   statsAvailable: boolean;
-  source: "thesportsdb";
+  source: "thesportsdb" | "espn";
 }
 
 export interface FootballTeam {
@@ -92,7 +91,7 @@ export interface FootballGame {
   players: FootballPlayer[];
   lineupAvailable: boolean;
   lineupStatus: "confirmed" | "unavailable";
-  lineupSource: "thesportsdb" | null;
+  lineupSource: "thesportsdb" | "espn" | null;
   playerStatsAvailable: boolean;
 }
 

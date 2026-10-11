@@ -121,7 +121,7 @@ export default function FootballOptimizer() {
     setError(null);
     try {
       const result = await fetchFootballGame(decodeURIComponent(id)) as FootballGame | null;
-      if (!result) throw new Error("This match is not available from TheSportsDB.");
+      if (!result) throw new Error("This match is not available from the football data providers.");
       setGame(result);
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : "Could not load this match.");
@@ -271,10 +271,10 @@ export default function FootballOptimizer() {
             <div className="rounded-2xl border border-amber-700/35 bg-amber-950/15 px-4 py-4">
               <p className="text-sm font-bold text-amber-200">Optimization requires real player data</p>
               <p className="text-xs text-amber-100/65 mt-1.5 leading-relaxed">
-                TheSportsDB free football events currently provide match information but no lineup, positions, player statistics, or fantasy credits. FantasyIQ will not generate synthetic players, ratings, points, or credits.
+                Free ESPN football match summaries can supply squad players and positions. Confirmed lineups, player statistics, and fantasy credits are shown only when supplied; FantasyIQ will not generate synthetic ratings, points, or credits.
               </p>
               <p className="text-[10px] text-amber-100/50 mt-2">
-                Lineup status: {game.lineupStatus === "confirmed" ? "confirmed by TheSportsDB" : "unavailable from TheSportsDB"}.
+                Lineup status: {game.lineupStatus === "confirmed" ? "confirmed by the provider" : "unavailable from the provider"}.
               </p>
             </div>
 
@@ -343,7 +343,7 @@ export default function FootballOptimizer() {
                       <option value="name">Sort: name</option>
                     </select>
                   </div>
-          <p className="text-[10px] text-muted-foreground/45 mt-2">Credits and statistics remain unavailable unless supplied by TheSportsDB or matched from the optional screenshot fallback.</p>
+          <p className="text-[10px] text-muted-foreground/45 mt-2">Credits and statistics remain unavailable unless supplied by a provider or matched from the optional screenshot fallback.</p>
                 </div>
                 <div className="rounded-2xl border border-border/40 bg-card p-4">
                   <div className="flex items-center justify-between">

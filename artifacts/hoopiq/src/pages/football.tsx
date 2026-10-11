@@ -165,7 +165,9 @@ function groupByLeague(games: FootballGame[]) {
     current.push(game);
     groups.set(key, current);
   }
-  return [...groups.values()].sort((a, b) => a[0].leagueName.localeCompare(b[0].leagueName));
+  // Keep the order from the already time-sorted overview: next kickoffs first,
+  // or most recently completed games first.
+  return [...groups.values()];
 }
 
 function MatchSection({
@@ -179,8 +181,17 @@ function MatchSection({
   games: FootballGame[];
   accent: string;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const groups = groupByLeague(games);
   if (groups.length === 0) return null;
+  const isLiveSection = title === "Live now";
+  const initialGroups = isLiveSection ? groups : groups.slice(0, 5);
+  const initialGamesCount = initialGroups.reduce(
+    (count, leagueGames) => count + (isLiveSection ? leagueGames.length : Math.min(leagueGames.length, 3)),
+    0,
+  );
+  const visibleGroups = expanded ? groups : initialGroups;
+  const canExpand = !isLiveSection && initialGamesCount < games.length;
   return (
     <section className="mb-7">
       <div className="flex items-end justify-between gap-3 px-1 mb-3">
@@ -188,16 +199,30 @@ function MatchSection({
           <h2 className={`text-xs font-black uppercase tracking-[0.18em] ${accent}`}>{title}</h2>
           <p className="text-[10px] text-muted-foreground/40 mt-1">{subtitle}</p>
         </div>
-        <span className="text-[10px] text-muted-foreground/45 tabular-nums">{games.length}</span>
+        <span className="text-[10px] text-muted-foreground/45 tabular-nums">{games.length} matches</span>
       </div>
       <div className="flex flex-col gap-4">
-        {groups.map((leagueGames) => (
+        {visibleGroups.map((leagueGames) => (
           <div key={`${title}-${leagueGames[0].leagueId}`} className="flex flex-col gap-2">
-            <p className="text-[10px] font-bold text-muted-foreground/50 px-1">{leagueGames[0].leagueName}</p>
-            {leagueGames.map((game) => <MatchCard game={game} key={game.id} />)}
+            <p className="flex items-center justify-between gap-3 text-[10px] font-bold text-muted-foreground/50 px-1">
+              <span>{leagueGames[0].leagueName}</span>
+              <span className="tabular-nums">{leagueGames.length}</span>
+            </p>
+            {(expanded || isLiveSection ? leagueGames : leagueGames.slice(0, 3))
+              .map((game) => <MatchCard game={game} key={game.id} />)}
           </div>
         ))}
       </div>
+      {canExpand && (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+          className="mt-3 w-full rounded-xl border border-border bg-card/50 px-4 py-2.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+        >
+          {expanded ? "Show fewer matches" : `Show all ${games.length} matches`}
+        </button>
+      )}
     </section>
   );
 }
@@ -297,7 +322,7 @@ export default function FootballPage() {
         {!state.loading && !state.error && total === 0 && (
           <div className="rounded-2xl border border-border bg-card px-4 py-8 text-center mb-6">
             <p className="text-sm font-bold text-foreground/75">No matches in the current window</p>
-            <p className="text-[10px] text-muted-foreground/45 mt-1">TheSportsDB provides yesterday, today, and tomorrow.</p>
+            <p className="text-[10px] text-muted-foreground/45 mt-1">Free ESPN soccer feeds cover yesterday, today, and tomorrow, with TheSportsDB as fallback.</p>
           </div>
         )}
 
@@ -310,7 +335,7 @@ export default function FootballPage() {
         )}
 
         <footer className="border-t border-border/30 pt-4 mt-2 text-center">
-          <p className="text-[10px] text-muted-foreground/35">TheSportsDB · competitions auto-discovered · lineup/stats shown only when supplied</p>
+          <p className="text-[10px] text-muted-foreground/35">ESPN public scoreboard · TheSportsDB fallback · lineups/stats shown only when supplied</p>
           {refreshedLabel && <p className="text-[9px] text-muted-foreground/25 mt-1">Updated {refreshedLabel}</p>}
         </footer>
       </div>

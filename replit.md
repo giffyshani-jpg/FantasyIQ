@@ -37,6 +37,7 @@ FantasyIQ is a multi-sport fantasy analysis hub for real basketball, cricket, fo
 - CricketData's free score feed supplies live/fixture/result summaries, teams, scores, and series; detailed squads and scorecards are marked work in progress. Do not infer or fabricate player stats when the feed omits them.
 - Cricket contest guidance consumes the existing stats-based AI ratings but never changes cricket scoring profiles, credits, or the 11-player optimizer.
 - PKL accepts imported/provider player records rather than inventing a roster while no stable PKL player feed is configured.
+- Football schedules, live scores, results, and competition names use ESPN's free public soccer scoreboard/summary endpoints; TheSportsDB remains the fallback. ESPN's site API is undocumented and has no published quota, so retain short-lived caches and fallback behavior. Use its match roster data only when supplied, and never invent player stats or fantasy credits.
 - Football captaincy prioritizes only explicit penalty/set-piece signals; it never infers those roles from position, goals, or fantasy points.
 - Existing WNBA and basketball provider/scoring pipelines are preserved as separate adapters.
 
@@ -56,7 +57,7 @@ FantasyIQ is a multi-sport fantasy analysis hub for real basketball, cricket, fo
 
 - Run `pnpm --filter @workspace/api-spec run codegen` after changing `lib/api-spec/openapi.yaml`.
 - Restart `artifacts/api-server: API Server` after server or API contract changes, then verify `/api/healthz` and the changed route through the shared proxy.
-- The FantasyIQ remote is `fantasyiq`; `origin` may point to a different repository and must not be used for this branch.
+- The development branch for this repository is `v2.0`; `main` is read-only. In this checkout, `origin` points to `https://github.com/giffyshani-jpg/FantasyIQ.git`; verify the branch and remote before each push.
 - Providers must not fabricate player data or credits when the upstream source does not supply them.
 
 ## Pointers

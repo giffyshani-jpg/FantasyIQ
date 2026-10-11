@@ -107,7 +107,7 @@ export default function FootballMatchDetails() {
     setError(null);
     try {
       const result = await fetchFootballGame(decodeURIComponent(id)) as FootballGame | null;
-      if (!result) throw new Error("This match is not available from TheSportsDB.");
+      if (!result) throw new Error("This match is not available from the football data providers.");
       setGame(result);
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : "Could not load this match.");
