@@ -47,6 +47,16 @@ FantasyIQ is a multi-sport fantasy analysis hub for real basketball, cricket, fo
 - Football match discovery, lineup/formation validation, XI optimization, captain/vice-captain selection, and explicit set-piece/penalty-taker signals.
 - EuroLeague results and fixtures through the official feed proxy.
 
+## Current v2.0 handoff
+
+- PKL's route, page, and scoring module have been removed. The Screenshot Optimizer and PKL cards are no longer on Home; the standalone Screenshot Optimizer route remains, and OCR Import was left intact.
+- Football uses ESPN's free soccer scoreboard/summary feed with TheSportsDB as fallback. Match discovery was improved, but player fantasy points have not been verified across competitions.
+- CricketData's free `cricScore` feed supplies match summaries and team scores, not player scorecards. The server caches upstream responses for 16 minutes to stay within the free daily quota; the cricket schedule page does not periodically refresh, and detail-page polling cannot bypass that cache.
+- The football schedule loads on entry and manual refresh; it does not periodically poll. Do not show invented player stats or treat missing provider stats as verified zero points.
+- Basketball remains NBA-first with WNBA second and secondary-competition links. In-page league filters and an Others filter are not implemented; preserve the NBA/WNBA provider and scoring paths when adding them.
+- Next: investigate a genuinely free cricket scorecard source and quota-safe refresh; verify available ESPN soccer player stats and add refresh/points only for supplied stats; then standardize shared sport controls and add basketball league filters. Relevant pages are `cricket-schedule.tsx`, `cricket-box-score.tsx`, `football.tsx`, and `basketball.tsx`; provider/scoring files are under `providers/` and `lib/`.
+- No test or lint scripts were found in the workspace package manifests. The root `pnpm run build` is the current full typecheck/build check.
+
 ## User preferences
 
 - Preserve existing WNBA, basketball, and sport scoring behavior when adding new sport features.
