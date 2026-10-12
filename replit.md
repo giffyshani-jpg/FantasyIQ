@@ -36,7 +36,6 @@ FantasyIQ is a multi-sport fantasy analysis hub for real basketball, cricket, fo
 - Cricket match discovery uses CricketData.org's `cricScore` feed through the same-origin API server proxy. The server reads `CRICKETDATA_API_KEY` from Replit Secrets, allowlists returned fields, and caches for 16 minutes (about 90 calls/day against the free 100-call limit). TheSportsDB remains the fallback.
 - CricketData's free score feed supplies live/fixture/result summaries, teams, scores, and series; detailed squads and scorecards are marked work in progress. Do not infer or fabricate player stats when the feed omits them.
 - Cricket contest guidance consumes the existing stats-based AI ratings but never changes cricket scoring profiles, credits, or the 11-player optimizer.
-- PKL accepts imported/provider player records rather than inventing a roster while no stable PKL player feed is configured.
 - Football schedules, live scores, results, and competition names use ESPN's free public soccer scoreboard/summary endpoints; TheSportsDB remains the fallback. ESPN's site API is undocumented and has no published quota, so retain short-lived caches and fallback behavior. Use its match roster data only when supplied, and never invent player stats or fantasy credits.
 - Football captaincy prioritizes only explicit penalty/set-piece signals; it never infers those roles from position, goals, or fantasy points.
 - Existing WNBA and basketball provider/scoring pipelines are preserved as separate adapters.
@@ -47,7 +46,6 @@ FantasyIQ is a multi-sport fantasy analysis hub for real basketball, cricket, fo
 - Cricket schedules, live score summaries, recent results, format-aware scoring, an 11-player optimizer, AI player ratings, and small-/large-contest strategy guidance.
 - Football match discovery, lineup/formation validation, XI optimization, captain/vice-captain selection, and explicit set-piece/penalty-taker signals.
 - EuroLeague results and fixtures through the official feed proxy.
-- PKL seven-player optimization using Dream11-style kabaddi scoring, role limits, team limits, and imported real player projections.
 
 ## User preferences
 
